@@ -3,8 +3,8 @@
 Auto-create iklan Meta **Click-to-WhatsApp** untuk peniaga kecil. Produk di bawah ekosistem DYNOPRO.
 
 **Fasa 0 = alat single-account untuk pemilik.** Tiada login, tiada OAuth, tiada bayaran.
-Token duduk dalam `.env`. Fasa 1 (auto split test), Fasa 2 (multi-user) dan Fasa 3 (jual)
-diterangkan dalam [`CLAUDE.md`](CLAUDE.md).
+Token duduk dalam `.env`. Fasa 1 (guna posting sedia ada) hingga Fasa 9 diterangkan dalam
+[`CLAUDE.md`](CLAUDE.md) dan [`docs/dyno-ads-spec-v0.2.md`](docs/dyno-ads-spec-v0.2.md).
 
 ---
 
@@ -102,10 +102,16 @@ php artisan test
 Semua panggilan luar guna `Http::fake()` — test tidak sentuh Meta atau Claude.
 Yang diuji: payload campaign/adset/ad, targeting geo, parsing insights
 (`onsite_conversion.total_messaging_connection`), pengendalian `error_user_msg`,
-retry JSON caption, penapis perkataan larangan, dan penguatkuasaan "hanya sentuh
-campaign sendiri".
+retry JSON caption, penapis perkataan larangan, flow Livewire `/buat` →
+`/semak` → `/run` → `/dashboard`, dan setiap peraturan mutlak CLAUDE.md
+(`tests/Feature/AbsoluteRulesTest.php`).
 
-CI (GitHub Actions) jalankan Pint + test pada setiap push.
+```bash
+vendor/bin/pint --test    # gaya kod
+php artisan test          # 34 test
+```
+
+CI (`.github/workflows/ci.yml`) jalankan Pint + test pada setiap push.
 
 ---
 
@@ -119,11 +125,32 @@ CI (GitHub Actions) jalankan Pint + test pada setiap push.
 ## Struktur
 
 ```
-app/Services/MetaAdsService.php    semua panggilan Graph API
-app/Services/CaptionService.php    caption AI (takut → tenang)
+app/Services/MetaAdsService.php    semua panggilan Graph API (tiada method update*)
+app/Services/CaptionService.php    caption AI, fallback bila Claude gagal
 app/Services/AdLauncher.php        orkestra DB ⇄ Meta, log auto_actions
 app/Services/ImageProcessor.php    crop tengah 1080×1080 (GD)
+app/Exceptions/MetaApiException.php  ralat Graph API, mengutamakan error_user_msg
+app/Models/                        AdSet, AdVariant, AutoAction, MetricDaily
 app/Livewire/AdSets/               Create, Review, Run, Dashboard
+resources/views/livewire/ad-sets/  4 skrin, mobile-first, BM santai
 config/dynoads.php                 semua setting Meta yang terbukti
-docs/dyno-ads-spec.md              spec produk penuh
+docs/dyno-ads-spec-v0.2.md         spec produk penuh
 ```
+
+## Kawasan
+
+Kunci region Meta tidak pernah ditulis tangan dalam kod. Skrin `/buat` menarik
+senarai negeri terus dari `GET /search?type=adgeolocation&country_code=MY`
+(cache 24 jam), jadi ia sentiasa sepadan dengan akaun sebenar. Tanpa token,
+pilihan kekal "Seluruh Malaysia" — yang sudah pun mengecualikan Sabah, Sarawak
+dan Labuan mengikut `config/dynoads.php`.
+
+## Nota Fasa 0
+
+- `AdVariant::isOwnedByApp()` menapis setiap run/pause. Campaign yang bukan app
+  ini buat langsung tiada dalam `ad_variants`, jadi ia tak boleh disentuh.
+- `activate()` dan `pause()` hanya menghantar medan `status` — tiada budget,
+  targeting atau creative dihantar semula. Ini diuji dalam
+  `tests/Feature/AbsoluteRulesTest.php`.
+- Kalau Claude API gagal, `CaptionService` pulangkan caption asas yang boleh
+  diedit. Peniaga tidak tersekat sebab AI down.
