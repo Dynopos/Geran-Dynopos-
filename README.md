@@ -93,6 +93,11 @@ Dari 150+ campaign sejarah DynoPOS (kos/lead ~RM10–15). Semuanya duduk dalam
 
 ---
 
+## Deploy
+
+Laravel Forge: lihat [`docs/forge.md`](docs/forge.md) — deploy script, tetapan PHP,
+dan cara isi `.env` melalui tab Environment.
+
 ## Test
 
 ```bash
