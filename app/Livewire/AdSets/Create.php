@@ -2,10 +2,12 @@
 
 namespace App\Livewire\AdSets;
 
+use App\Exceptions\MetaApiException;
 use App\Models\AdSet;
 use App\Models\AdVariant;
 use App\Services\ImageProcessor;
 use App\Services\MetaAdsService;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -19,7 +21,17 @@ class Create extends Component
 {
     use WithFileUploads;
 
-    /** @var array<int, TemporaryUploadedFile> */
+    /**
+     * Kotak pilih fail. Atas telefon, galeri selalunya pulangkan satu gambar
+     * setiap kali — jadi medan ini dikosongkan setiap kali dan isinya
+     * dipindahkan ke $images. Kalau tidak, pilihan kedua MENGGANTIKAN yang
+     * pertama dan peniaga hanya dapat satu gambar tanpa tahu kenapa.
+     *
+     * @var array<int, TemporaryUploadedFile>
+     */
+    public array $upload = [];
+
+    /** Gambar yang dikumpul setakat ini. @var array<int, TemporaryUploadedFile> */
     public array $images = [];
 
     public string $problem = '';
@@ -28,12 +40,15 @@ class Create extends Component
 
     public string $phone = '';
 
-    public ?string $regionKey = null;
+    /** @var array<int, string> */
+    public array $regionKeys = [];
 
     public int $budgetRm = 37;
 
     /** @var array<int, array{key:string,name:string}> */
     public array $regions = [];
+
+    public ?string $regionError = null;
 
     public function mount(MetaAdsService $meta): void
     {
@@ -42,10 +57,64 @@ class Create extends Component
 
         try {
             $this->regions = $meta->searchRegions();
-        } catch (\Throwable) {
-            // Tiada token atau Meta tak dapat dihubungi — seluruh Malaysia masih boleh.
+        } catch (\Throwable $e) {
+            // Senarai negeri datang dari Meta. Tanpa token yang sah ia gagal —
+            // katakan sebabnya, jangan biarkan senarai kosong tanpa penjelasan.
             $this->regions = [];
+            $this->regionError = $this->safeReason($e);
         }
+    }
+
+    /**
+     * Sebab kegagalan yang selamat dipapar.
+     *
+     * Mesej pengecualian HTTP membawa URL penuh yang dipanggil — dan URL Graph
+     * API mengandungi ?access_token=. Peraturan mutlak #8: token tidak pernah
+     * dipapar, dilog atau ditulis ke mana-mana. Jadi kita tidak pernah
+     * memaparkan mesej mentah; kita pulangkan ayat pendek kita sendiri.
+     */
+    private function safeReason(\Throwable $e): string
+    {
+        return match (true) {
+            $e instanceof MetaApiException => $e->forHuman(),
+            $e instanceof ConnectionException => 'Tidak dapat hubungi Meta dari pelayan ini.',
+            default => 'Panggilan ke Meta gagal ('.class_basename($e).').',
+        };
+    }
+
+    /** Kumpul gambar merentas beberapa kali pilih, jangan ganti. */
+    public function updatedUpload(): void
+    {
+        $max = (int) config('dynoads.creative.max_images');
+
+        foreach ($this->upload as $file) {
+            if (count($this->images) >= $max) {
+                break;
+            }
+
+            $this->images[] = $file;
+        }
+
+        $this->upload = [];
+        $this->resetValidation('images');
+    }
+
+    public function removeImage(int $index): void
+    {
+        unset($this->images[$index]);
+        $this->images = array_values($this->images);
+    }
+
+    public function toggleRegion(string $key): void
+    {
+        $this->regionKeys = in_array($key, $this->regionKeys, true)
+            ? array_values(array_diff($this->regionKeys, [$key]))
+            : [...$this->regionKeys, $key];
+    }
+
+    public function clearRegions(): void
+    {
+        $this->regionKeys = [];
     }
 
     protected function rules(): array
@@ -59,7 +128,8 @@ class Create extends Component
             'problem' => 'required|string|min:5|max:200',
             'offer' => 'required|string|min:5|max:200',
             'phone' => ['required', 'regex:/^60\d{8,11}$/'],
-            'regionKey' => 'nullable|string',
+            'regionKeys' => 'array',
+            'regionKeys.*' => 'string',
             'budgetRm' => "required|integer|min:{$min}|max:{$max}",
         ];
     }
@@ -76,6 +146,11 @@ class Create extends Component
         ];
     }
 
+    public function totalDailyRm(): int
+    {
+        return max(count($this->images), 1) * $this->budgetRm;
+    }
+
     public function save(ImageProcessor $processor)
     {
         $this->validate();
@@ -85,8 +160,8 @@ class Create extends Component
             'problem' => $this->problem,
             'offer' => $this->offer,
             'phone' => $this->phone,
-            'region_key' => $this->regionKey ?: null,
-            'region_name' => $this->regionName(),
+            'region_keys' => $this->regionKeys,
+            'region_names' => $this->regionNames(),
             'daily_budget_sen' => $this->budgetRm * 100,
             'status' => 'draft',
         ]);
@@ -111,13 +186,13 @@ class Create extends Component
         return $this->redirectRoute('ad-sets.review', ['adSet' => $set], navigate: true);
     }
 
-    protected function regionName(): ?string
+    /** @return array<int, string> */
+    protected function regionNames(): array
     {
-        if (! $this->regionKey) {
-            return null;
-        }
-
-        return collect($this->regions)->firstWhere('key', $this->regionKey)['name'] ?? null;
+        return collect($this->regions)
+            ->whereIn('key', $this->regionKeys)
+            ->pluck('name')
+            ->all();
     }
 
     public function render()

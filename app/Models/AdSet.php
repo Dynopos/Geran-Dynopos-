@@ -12,13 +12,15 @@ class AdSet extends Model
 
     protected $fillable = [
         'name', 'problem', 'offer', 'phone',
-        'region_key', 'region_name', 'daily_budget_sen', 'status',
+        'region_keys', 'region_names', 'daily_budget_sen', 'status',
     ];
 
     protected function casts(): array
     {
         return [
             'daily_budget_sen' => 'integer',
+            'region_keys' => 'array',
+            'region_names' => 'array',
         ];
     }
 
@@ -40,6 +42,14 @@ class AdSet extends Model
 
     public function regionLabel(): string
     {
-        return $this->region_name ?: 'Seluruh Malaysia';
+        $names = array_filter((array) $this->region_names);
+
+        return $names === [] ? 'Seluruh Malaysia' : implode(', ', $names);
+    }
+
+    /** @return array<int, string> */
+    public function regionKeyList(): array
+    {
+        return array_values(array_filter((array) $this->region_keys));
     }
 }

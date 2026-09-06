@@ -72,7 +72,8 @@ class MetaAdsService
     }
 
     /** Ad set CONVERSATIONS → WhatsApp, sentiasa PAUSED. */
-    public function createAdSet(string $campaignId, string $name, ?string $regionKey = null): string
+    /** @param  array<int, string>  $regionKeys */
+    public function createAdSet(string $campaignId, string $name, array $regionKeys = []): string
     {
         $payload = [
             'name' => $name,
@@ -85,7 +86,7 @@ class MetaAdsService
                 'page_id' => (string) config('dynoads.meta.page_id'),
                 'whatsapp_phone_number' => (string) config('dynoads.meta.wa_phone'),
             ]),
-            'targeting' => json_encode($this->buildTargeting($regionKey)),
+            'targeting' => json_encode($this->buildTargeting($regionKeys)),
         ];
 
         return $this->createObject("{$this->adAccountId}/adsets", $payload);
@@ -239,15 +240,21 @@ class MetaAdsService
     // -------------------------------------------------------------- targeting
 
     /**
-     * Targeting terbukti. $regionKey null = seluruh Malaysia tolak
-     * Sarawak / Labuan / Sabah.
+     * Targeting terbukti.
+     *
+     * $regionKeys kosong = seluruh Malaysia tolak Sarawak / Labuan / Sabah.
+     * Kalau ada, Meta disasarkan ke negeri-negeri itu sahaja — ia menerima
+     * senarai, jadi satu negeri atau lima sama sahaja.
+     *
+     * @param  array<int, string>  $regionKeys
      */
-    public function buildTargeting(?string $regionKey = null): array
+    public function buildTargeting(array $regionKeys = []): array
     {
         $t = config('dynoads.targeting');
+        $regionKeys = array_values(array_unique(array_filter($regionKeys)));
 
-        $geo = $regionKey
-            ? ['regions' => [['key' => $regionKey]]]
+        $geo = $regionKeys !== []
+            ? ['regions' => array_map(fn (string $key) => ['key' => $key], $regionKeys)]
             : [
                 'countries' => [$t['country']],
                 'excluded_geo_locations' => [
@@ -269,9 +276,9 @@ class MetaAdsService
             'brand_safety_content_filter_levels' => $t['brand_safety_content_filter_levels'],
         ];
 
-        // Bila satu negeri dipilih, setup manual yang terbukti menghantar field ini.
-        // Kalau Meta tolak, set DYNOADS_GEO_TARGETING_AUTOMATION=false — tiada kesan lain.
-        if ($regionKey && $t['send_geo_targeting_automation']) {
+        // Bila negeri tertentu dipilih, setup manual yang terbukti menghantar field
+        // ini. Kalau Meta tolak, set DYNOADS_GEO_TARGETING_AUTOMATION=false.
+        if ($regionKeys !== [] && $t['send_geo_targeting_automation']) {
             $targeting['targeting_automation']['individual_setting'] = ['geo_locations' => 1];
         }
 

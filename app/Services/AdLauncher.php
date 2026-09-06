@@ -58,7 +58,7 @@ class AdLauncher
             $campaignId = $this->meta->createCampaign($name, $set->daily_budget_sen);
             $variant->update(['meta_campaign_id' => $campaignId]);
 
-            $adsetId = $this->meta->createAdSet($campaignId, $name, $set->region_key);
+            $adsetId = $this->meta->createAdSet($campaignId, $name, $set->regionKeyList());
             $variant->update(['meta_adset_id' => $adsetId]);
 
             $creativeId = $this->meta->createCreative($name, $hash, (string) $variant->caption);
