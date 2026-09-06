@@ -1,11 +1,11 @@
 <div>
     <h1 class="text-[28px] font-extrabold leading-tight tracking-tight">Semak dulu</h1>
-    <p class="mt-1.5 text-sm leading-relaxed text-white/50">
+    <p class="mt-1.5 text-sm leading-relaxed t-muted">
         AI Nurin dah tulis caption. Ubah ikut suka anda — anda yang kenal pelanggan.
     </p>
 
     @if ($error)
-        <div class="mt-4 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3.5 text-sm text-rose-200">{{ $error }}</div>
+        <div class="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-sm text-rose-700 dark:text-rose-200">{{ $error }}</div>
     @endif
 
     <div class="mt-6 space-y-5">
@@ -18,7 +18,7 @@
                         Iklan #{{ $variant->position }}
                     </span>
                     @if ($variant->meta_campaign_id)
-                        <span class="absolute right-3 top-3 rounded-lg bg-emerald-500/20 px-2 py-1 text-[11px] font-semibold text-emerald-300 backdrop-blur-sm">
+                        <span class="absolute right-3 top-3 rounded-lg bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 backdrop-blur-sm">
                             Sudah dibuat
                         </span>
                     @endif
@@ -31,21 +31,21 @@
         @endforeach
     </div>
 
-    <div class="card mt-6 divide-y divide-white/5 p-4 text-sm">
+    <div class="card mt-6 divide-hair p-4 text-sm">
         <div class="flex items-start justify-between gap-4 pb-2.5">
-            <span class="text-white/45">Kawasan</span>
+            <span class="t-muted">Kawasan</span>
             <span class="text-right font-semibold">{{ $adSet->regionLabel() }}</span>
         </div>
         <div class="flex justify-between py-2.5">
-            <span class="text-white/45">WhatsApp</span>
+            <span class="t-muted">WhatsApp</span>
             <span class="font-semibold">{{ $adSet->phone }}</span>
         </div>
         <div class="flex justify-between py-2.5">
-            <span class="text-white/45">Bajet sehari</span>
+            <span class="t-muted">Bajet sehari</span>
             <span class="font-semibold">RM{{ intdiv($adSet->daily_budget_sen, 100) }} &times; {{ $adSet->variants->count() }} iklan</span>
         </div>
         <div class="flex items-center justify-between pt-2.5">
-            <span class="text-white/45">Jumlah sehari</span>
+            <span class="t-muted">Jumlah sehari</span>
             <span class="bg-dyno-gradient bg-clip-text text-lg font-extrabold text-transparent">
                 RM{{ intdiv($adSet->totalDailyBudgetSen(), 100) }}
             </span>
@@ -64,7 +64,7 @@
         <span wire:loading wire:target="approve">Sedang buat di Meta…</span>
     </button>
 
-    <p class="mt-3 text-center text-xs leading-relaxed text-white/40">
+    <p class="mt-3 text-center text-xs leading-relaxed t-faint">
         Iklan dibuat dalam keadaan PAUSED.<br>Tiada duit dibelanjakan sampai anda tekan RUN.
     </p>
 </div>

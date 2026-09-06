@@ -2,77 +2,176 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+| Satu set token, dua tema. Setiap komponen di bawah merujuk pemboleh ubah ini,
+| jadi Blade tidak perlu tahu tema mana yang aktif — tiada kelas dark: bertaburan
+| dalam view, dan skrin baharu sepadan secara automatik.
+|
+| Gradien logo (biru → ungu → magenta) kekal sama pada kedua-dua tema; ia cukup
+| pekat untuk dibaca atas putih mahupun atas gelap.
+*/
 @layer base {
+    :root {
+        --bg: 250 248 255;
+        --bg-glow: rgba(139, 63, 214, 0.14);
+        --surface: 255 255 255;
+        --surface-soft: 248 246 253;
+        --border: 20 16 42;
+        --border-alpha: 0.1;
+        --text: 20 16 42;
+        --muted: 91 84 112;
+        --faint: 139 132 158;
+        --field: 255 255 255;
+        --shadow: 0 1px 2px rgba(20, 16, 42, 0.06), 0 8px 24px -12px rgba(139, 63, 214, 0.35);
+    }
+
+    .dark {
+        --bg: 10 7 21;
+        --bg-glow: rgba(139, 63, 214, 0.35);
+        --surface: 255 255 255;
+        --surface-soft: 255 255 255;
+        --border: 255 255 255;
+        --border-alpha: 0.1;
+        --text: 255 255 255;
+        --muted: 168 162 186;
+        --faint: 122 116 140;
+        --field: 18 12 34;
+        --shadow: 0 0 0 1px rgba(139, 63, 214, 0.35), 0 8px 32px -8px rgba(230, 36, 143, 0.45);
+    }
+
     html {
+        color-scheme: light;
+    }
+
+    html.dark {
         color-scheme: dark;
     }
 
     body {
-        background-color: theme('colors.ink.950');
-        background-image: theme('backgroundImage.dyno-glow');
+        background-color: rgb(var(--bg));
+        background-image: radial-gradient(120% 80% at 50% 0%, var(--bg-glow) 0%, rgb(var(--bg) / 0) 70%);
         background-repeat: no-repeat;
         background-size: 100% 520px;
-    }
-
-    /* Medan borang gelap — jangan biar browser paksa putih. */
-    input,
-    textarea,
-    select {
-        color-scheme: dark;
+        color: rgb(var(--text));
     }
 }
 
 @layer components {
+    /* Permukaan: putih pekat pada mod terang, kaca lut sinar pada mod gelap. */
     .card {
-        @apply rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-sm;
+        @apply rounded-2xl;
+        background-color: rgb(var(--surface) / var(--surface-opacity, 1));
+        border: 1px solid rgb(var(--border) / var(--border-alpha));
+        box-shadow: var(--shadow);
+    }
+
+    .dark .card {
+        --surface-opacity: 0.04;
+        box-shadow: none;
     }
 
     .field {
-        @apply w-full rounded-xl border border-white/10 bg-ink-900/80 p-3.5 text-[15px] text-white
-               placeholder:text-white/30 focus:border-dyno-purple/60 focus:outline-none
-               focus:ring-2 focus:ring-dyno-purple/30;
+        @apply w-full rounded-xl p-3.5 text-[15px] focus:outline-none focus:ring-2;
+        background-color: rgb(var(--field));
+        border: 1px solid rgb(var(--border) / var(--border-alpha));
+        color: rgb(var(--text));
+    }
+
+    .field::placeholder {
+        color: rgb(var(--faint));
+    }
+
+    .field:focus {
+        border-color: theme('colors.dyno.purple');
+        --tw-ring-color: rgb(139 63 214 / 0.25);
     }
 
     .label {
-        @apply block text-sm font-semibold text-white;
+        @apply block text-sm font-semibold;
+        color: rgb(var(--text));
+    }
+
+    .t-muted {
+        color: rgb(var(--muted));
+    }
+
+    .t-faint {
+        color: rgb(var(--faint));
     }
 
     .hint {
-        @apply mt-1.5 text-xs leading-relaxed text-white/45;
+        @apply mt-1.5 text-xs leading-relaxed;
+        color: rgb(var(--faint));
     }
 
     .err {
-        @apply mt-1.5 text-xs text-rose-400;
+        @apply mt-1.5 text-xs text-rose-500;
+    }
+
+    .dark .err {
+        @apply text-rose-400;
     }
 
     .btn-primary {
         @apply w-full rounded-xl bg-dyno-gradient px-4 py-4 text-base font-bold text-white
-               shadow-glow transition active:scale-[0.99] disabled:opacity-50;
+               transition active:scale-[0.99] disabled:opacity-50;
+        box-shadow: 0 6px 24px -8px rgba(230, 36, 143, 0.6);
     }
 
     .btn-ghost {
-        @apply w-full rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3
-               text-sm font-semibold text-white/90 transition active:scale-[0.99];
+        @apply w-full rounded-xl px-4 py-3 text-sm font-semibold transition active:scale-[0.99];
+        background-color: rgb(var(--surface-soft));
+        border: 1px solid rgb(var(--border) / calc(var(--border-alpha) + 0.05));
+        color: rgb(var(--text));
+    }
+
+    .dark .btn-ghost {
+        background-color: rgb(255 255 255 / 0.04);
     }
 
     .chip {
-        @apply rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2.5 text-sm
-               font-semibold text-white/70 transition;
+        @apply rounded-xl px-3 py-2.5 text-sm font-semibold transition;
+        background-color: rgb(var(--surface-soft));
+        border: 1px solid rgb(var(--border) / calc(var(--border-alpha) + 0.05));
+        color: rgb(var(--muted));
+    }
+
+    .dark .chip {
+        background-color: rgb(255 255 255 / 0.04);
     }
 
     .chip-on {
-        @apply border-transparent bg-dyno-gradient text-white shadow-glow;
+        @apply border-transparent bg-dyno-gradient text-white;
+        box-shadow: 0 4px 16px -6px rgba(230, 36, 143, 0.6);
     }
 
     .stat {
-        @apply rounded-2xl border border-white/10 bg-white/[0.04] p-3;
+        @apply rounded-2xl p-3;
+        background-color: rgb(var(--surface) / var(--surface-opacity, 1));
+        border: 1px solid rgb(var(--border) / var(--border-alpha));
+        box-shadow: var(--shadow);
+    }
+
+    .dark .stat {
+        --surface-opacity: 0.04;
+        box-shadow: none;
     }
 
     .stat-label {
-        @apply text-[10px] font-semibold uppercase tracking-wider text-white/40;
+        @apply text-[10px] font-semibold uppercase tracking-wider;
+        color: rgb(var(--faint));
     }
 
     .stat-value {
-        @apply mt-1 text-lg font-bold text-white;
+        @apply mt-1 text-lg font-bold;
+        color: rgb(var(--text));
+    }
+
+    .divide-hair > * + * {
+        border-top: 1px solid rgb(var(--border) / calc(var(--border-alpha) * 0.6));
+    }
+
+    .gradient-text {
+        @apply bg-dyno-gradient bg-clip-text text-transparent;
     }
 }
