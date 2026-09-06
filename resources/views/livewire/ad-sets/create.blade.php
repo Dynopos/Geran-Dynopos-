@@ -33,13 +33,18 @@
             @if ($images)
                 <div class="mt-3 grid grid-cols-4 gap-2">
                     @foreach ($images as $i => $image)
-                        <div class="relative">
-                            <img src="{{ $image->temporaryUrl() }}" alt=""
-                                 class="aspect-square w-full rounded-xl border border-current/10 object-cover">
-                            <span class="absolute left-1 top-1 rounded-md bg-black/70 px-1.5 text-[10px] font-bold">#{{ $i + 1 }}</span>
-                            <button type="button" wire:click="removeImage({{ $i }})" aria-label="Buang gambar {{ $i + 1 }}"
-                                    class="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-current/20 text-xs font-bold">
-                                &times;
+                        <div>
+                            <div class="relative">
+                                <img src="{{ $image->temporaryUrl() }}" alt=""
+                                     class="aspect-square w-full rounded-xl border border-current/10 object-cover">
+                                <span class="absolute left-1 top-1 rounded-md bg-black/70 px-1.5 text-[10px] font-bold text-white">#{{ $i + 1 }}</span>
+                                <button type="button" wire:click="removeImage({{ $i }})" aria-label="Buang gambar {{ $i + 1 }}"
+                                        class="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-current/20 text-xs font-bold"
+                                        style="background-color: rgb(var(--surface-soft))">&times;</button>
+                            </div>
+                            <button type="button" wire:click="makePoster({{ $i }})"
+                                    class="mt-1.5 w-full rounded-lg border border-current/15 px-1 py-1 text-[10px] font-bold leading-tight t-muted">
+                                Jadikan<br>poster
                             </button>
                         </div>
                     @endforeach
@@ -59,8 +64,15 @@
                     Semua dipotong jadi persegi 1080&times;1080.
                 </p>
                 <a href="{{ route('posters.create') }}" wire:navigate
-                   class="mt-2 inline-block text-xs font-semibold text-dyno-magenta dark:text-dyno-pink">
-                    Atau buat poster dari gambar produk &rarr;
+                   class="card mt-3 flex items-center gap-3 p-3.5">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dyno-gradient text-lg">&#10022;</span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block text-sm font-bold">Buat poster dulu</span>
+                        <span class="block text-xs leading-relaxed t-muted">
+                            Gambar produk &rarr; latar dibuang &rarr; teks besar. Lebih menonjol daripada gambar mentah.
+                        </span>
+                    </span>
+                    <span class="t-faint">&rarr;</span>
                 </a>
             @else
                 <p class="hint">Sudah cukup 4. Buang satu kalau nak tukar.</p>

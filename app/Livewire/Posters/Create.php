@@ -4,6 +4,7 @@ namespace App\Livewire\Posters;
 
 use App\Services\Poster\PosterBasket;
 use App\Services\Poster\PosterService;
+use App\Services\Poster\ProductHandoff;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -18,6 +19,11 @@ class Create extends Component
     use WithFileUploads;
 
     public ?TemporaryUploadedFile $product = null;
+
+    /** Gambar yang dibawa dari /buat — laluan relatif pada disk poster. */
+    public ?string $carried = null;
+
+    public ?string $carriedUrl = null;
 
     public string $kicker = '';
 
@@ -44,6 +50,24 @@ class Create extends Component
     public bool $adaProduk = false;
 
     public ?string $error = null;
+
+    public function mount(ProductHandoff $handoff): void
+    {
+        $this->carried = $handoff->path();
+        $this->carriedUrl = $handoff->url();
+    }
+
+    /** Gambar produk yang akan digunakan: muat naik baharu mengatasi yang dibawa. */
+    private function productPath(ProductHandoff $handoff): ?string
+    {
+        return $this->product?->getRealPath() ?? $handoff->absolutePath();
+    }
+
+    public function clearProduct(ProductHandoff $handoff): void
+    {
+        $handoff->clear();
+        $this->reset('product', 'carried', 'carriedUrl');
+    }
 
     protected function rules(): array
     {
@@ -74,7 +98,7 @@ class Create extends Component
         return config('dynoads.poster.background.moods');
     }
 
-    public function generate(PosterService $poster): void
+    public function generate(PosterService $poster, ProductHandoff $handoff): void
     {
         $this->validate();
         $this->reset('error', 'posterUrl');
@@ -92,26 +116,31 @@ class Create extends Component
                 ],
                 backgroundSource: $this->backgroundSource,
                 mood: $this->mood,
-                productAbsolutePath: $this->product?->getRealPath(),
+                productAbsolutePath: $this->productPath($handoff),
             );
 
             $this->posterJobId = $job->id;
             $this->posterUrl = Storage::disk(config('dynoads.poster.disk'))->url($job->output_path);
             $this->cutoutUsed = filled($job->cutout_path);
-            $this->adaProduk = (bool) $this->product;
+            $this->adaProduk = (bool) $this->productPath($handoff);
         } catch (\Throwable $e) {
             $this->error = 'Poster tidak dapat dihasilkan: '.$e->getMessage();
         }
     }
 
     /** Simpan poster ni untuk dijadikan iklan, tanpa muat turun. */
-    public function useForAd(PosterBasket $basket): void
+    public function useForAd(PosterBasket $basket, ProductHandoff $handoff): void
     {
         if (! $this->posterJobId) {
             return;
         }
 
         $basket->add($this->posterJobId);
+
+        // Gambar sumber sudah jadi poster; jangan biar ia tertunggu-tunggu
+        // dan muncul semula pada poster seterusnya.
+        $handoff->clear();
+        $this->reset('carried', 'carriedUrl');
     }
 
     public function removeFromBasket(int $posterJobId, PosterBasket $basket): void

@@ -75,6 +75,17 @@
             </label>
             @if ($product)
                 <img src="{{ $product->temporaryUrl() }}" alt="" class="mt-3 h-28 w-28 rounded-xl border border-current/10 object-cover">
+            @elseif ($carriedUrl)
+                <div class="mt-3 flex items-center gap-3">
+                    <img src="{{ $carriedUrl }}" alt="" class="h-28 w-28 rounded-xl border border-current/10 object-cover">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-semibold">Dibawa dari borang iklan</p>
+                        <button type="button" wire:click="clearProduct"
+                                class="mt-1.5 rounded-lg border border-current/15 px-2.5 py-1 text-[11px] font-semibold t-muted">
+                            Buang
+                        </button>
+                    </div>
+                </div>
             @endif
             <p class="hint">Tangkap atas meja atau dinding kosong — latar rata paling senang dibuang.</p>
             @error('product') <p class="err">{{ $message }}</p> @enderror
