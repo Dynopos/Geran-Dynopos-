@@ -8,6 +8,7 @@ use App\Models\AdVariant;
 use App\Services\ImageProcessor;
 use App\Services\MetaAdsService;
 use App\Services\Poster\PosterBasket;
+use App\Services\Poster\ProductHandoff;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
@@ -104,6 +105,24 @@ class Create extends Component
     {
         unset($this->images[$index]);
         $this->images = array_values($this->images);
+    }
+
+    /**
+     * Bawa gambar ni ke skrin poster sebagai gambar produk.
+     *
+     * Ia dikeluarkan dari senarai gambar biasa — kalau tidak, peniaga akan
+     * berakhir dengan dua creative dari satu gambar: yang mentah dan posternya.
+     */
+    public function makePoster(int $index, ProductHandoff $handoff)
+    {
+        if (! isset($this->images[$index])) {
+            return null;
+        }
+
+        $handoff->put($this->images[$index]->getRealPath());
+        $this->removeImage($index);
+
+        return $this->redirectRoute('posters.create', navigate: true);
     }
 
     public function toggleRegion(string $key): void

@@ -7,6 +7,7 @@ use App\Services\Poster\Backgrounds\AiDriver;
 use App\Services\Poster\Backgrounds\StockDriver;
 use App\Services\Poster\PosterBasket;
 use App\Services\Poster\PosterService;
+use App\Services\Poster\ProductHandoff;
 use App\Services\Poster\Removers\GdRemover;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
@@ -310,4 +311,68 @@ it('menolak bila tiada poster mahupun gambar', function () {
         ->assertHasErrors('images');
 
     expect(AdSet::count())->toBe(0);
+});
+
+// ---------------------------------------------------- serahan /buat → /poster
+
+it('"Jadikan poster" membawa gambar ke skrin poster', function () {
+    Http::fake(['*' => Http::response(['data' => []])]);
+
+    Livewire::test(Create::class)
+        ->set('upload', [UploadedFile::fake()->image('produk.jpg', 1200, 800)])
+        ->assertCount('images', 1)
+        ->call('makePoster', 0)
+        ->assertRedirect(route('posters.create'))
+        // Dikeluarkan dari senarai gambar biasa: satu gambar tidak boleh jadi
+        // dua creative (yang mentah dan posternya).
+        ->assertCount('images', 0);
+
+    $handoff = app(ProductHandoff::class);
+
+    expect($handoff->path())->not->toBeNull()
+        ->and(getimagesize($handoff->absolutePath()))->toMatchArray([0 => 1080, 1 => 1080]);
+});
+
+it('skrin poster mengambil gambar yang dibawa', function () {
+    Http::fake(['*' => Http::response(['data' => []])]);
+    $handoff = app(ProductHandoff::class);
+
+    Livewire::test(Create::class)
+        ->set('upload', [UploadedFile::fake()->image('produk.jpg')])
+        ->call('makePoster', 0);
+
+    Livewire::test(App\Livewire\Posters\Create::class)
+        ->assertSet('carried', $handoff->path())
+        ->assertSee('Dibawa dari borang iklan');
+});
+
+it('gambar yang dibawa dilepaskan selepas poster masuk senarai iklan', function () {
+    $handoff = app(ProductHandoff::class);
+
+    Livewire::test(Create::class)
+        ->set('upload', [UploadedFile::fake()->image('produk.jpg')])
+        ->call('makePoster', 0);
+
+    expect($handoff->path())->not->toBeNull();
+
+    Livewire::test(App\Livewire\Posters\Create::class)
+        ->set('posterJobId', posterSiap()->id)
+        ->call('useForAd');
+
+    // Kalau tidak, gambar sumber muncul semula pada poster seterusnya.
+    expect($handoff->path())->toBeNull();
+});
+
+it('peniaga boleh membuang gambar yang dibawa', function () {
+    $handoff = app(ProductHandoff::class);
+
+    Livewire::test(Create::class)
+        ->set('upload', [UploadedFile::fake()->image('produk.jpg')])
+        ->call('makePoster', 0);
+
+    Livewire::test(App\Livewire\Posters\Create::class)
+        ->call('clearProduct')
+        ->assertSet('carried', null);
+
+    expect($handoff->path())->toBeNull();
 });
