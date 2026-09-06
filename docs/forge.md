@@ -37,6 +37,11 @@ git pull origin $FORGE_SITE_BRANCH
 
 $FORGE_COMPOSER install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
+# Build CSS/JS. Tanpa ini, layout jatuh ke Tailwind play CDN — muat turun ~100KB
+# JS setiap muka surat, dan Tailwind sendiri kata ia bukan untuk production.
+npm ci
+npm run build
+
 # Fasa 0 guna sqlite — fail DB tidak masuk git, jadi cipta kalau belum ada.
 touch database/database.sqlite
 
@@ -50,6 +55,16 @@ $FORGE_PHP artisan optimize
 ( flock -w 10 9 || exit 1
     echo 'Restarting FPM...'; sudo -S service $FORGE_PHP_FPM reload ) 9>/tmp/fpmlock
 ```
+
+### Kenapa `npm run build` perlu
+
+`resources/views/layouts/app.blade.php` semak sama ada `public/build/manifest.json`
+wujud. Kalau ada, ia guna asset yang dibina (10 KB CSS). Kalau tiada, ia jatuh ke
+`https://cdn.tailwindcss.com` — Tailwind play CDN, yang mengkompil CSS dalam browser
+pelanggan. Ia berfungsi, tapi lambat dan Tailwind sendiri kata jangan guna di production.
+
+`public/build/` tidak masuk git (sengaja), jadi ia mesti dibina masa deploy.
+Server Forge sudah ada Node dan npm.
 
 `artisan optimize` cache config, route dan view. Ia membaca `.env` masa cache dibuat —
 jadi **isi `.env` dahulu**, baru tekan Deploy. Kalau tukar `.env` selepas tu, deploy
