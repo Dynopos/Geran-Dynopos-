@@ -1,6 +1,44 @@
 # Deploy ke Laravel Forge
 
-Nota untuk site `dynoads.on-forge.com` di server `dynopos`.
+Nota untuk site Dyno Ads di server `dynopos`. Domain: **dynoads.my**.
+
+Ganti `<folder-site>` di bawah dengan nama direktori sebenar site anda di Forge
+(lihat §0). Ia belum tentu sama dengan nama domain.
+
+---
+
+## 0. Domain dynoads.my
+
+**DNS di pendaftar domain.** Halakan domain ke IP pelayan `dynopos`
+(Forge memaparkan IP itu di halaman server):
+
+| Jenis | Nama | Nilai |
+|---|---|---|
+| A | `@` | IP pelayan |
+| A | `www` | IP pelayan |
+
+Sebar DNS ambil beberapa minit hingga beberapa jam. Semak dengan
+`dig dynoads.my +short` — bila ia pulangkan IP pelayan, baru teruskan.
+
+**Di Forge.** Ada dua jalan, dan pilihan ini menentukan sama ada deploy script
+perlu diubah:
+
+- *Tukar domain site sedia ada* — Site → Settings → Change Site Domain.
+  Nginx dikemas kini. **Semak sama ada Forge turut menamakan semula direktori
+  site**; kalau ya, mana-mana laluan mutlak (termasuk `DB_DATABASE` di §3B)
+  mesti dikemas kini juga.
+- *Buat site baharu* `dynoads.my` — lebih bersih, dan `dynoads.on-forge.com`
+  boleh dikekalkan sebagai staging. Perlu ulang tetapan `.env` dan deploy script.
+
+Blok deploy script dalam §3 sengaja tidak mengandungi `cd`, jadi ia berfungsi
+tanpa perubahan pada mana-mana laluan.
+
+**SSL.** Site → SSL → LetsEncrypt, masukkan `dynoads.my` dan `www.dynoads.my`.
+Tunggu DNS sebar dahulu — kalau tidak pengesahan gagal.
+
+**Redirect www.** Selepas SSL, tetapkan satu domain sahaja sebagai utama supaya
+`www` dan bukan-`www` tidak dianggap dua tapak berbeza oleh Google. Cara paling
+mudah di Forge: Site → Settings → Redirects, `www.dynoads.my` → `dynoads.my`.
 
 ---
 
@@ -127,7 +165,7 @@ Jadi tunjukkan sqlite ke dalam `storage/`. Dalam tab **Environment**:
 
 ```
 DB_CONNECTION=sqlite
-DB_DATABASE=/home/forge/dynoads.on-forge.com/storage/app/database.sqlite
+DB_DATABASE=/home/forge/<folder-site>/storage/app/database.sqlite
 ```
 
 Laluan mutlak, bukan relatif. Deploy script di atas sudah `touch` fail itu.
@@ -177,7 +215,7 @@ Yang lain sudah berisi. Tukar juga tiga ini untuk production:
 ```
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://dynoads.on-forge.com
+APP_URL=https://dynoads.my
 ```
 
 **`APP_URL` mesti tepat.** Gambar iklan dipapar melalui `Storage::url()`, yang
@@ -196,7 +234,7 @@ php artisan key:generate --force
 
 ## 5. Semak selepas deploy
 
-- Buka `https://dynoads.on-forge.com/buat` — borang patut keluar
+- Buka `https://dynoads.my/buat` — borang patut keluar
 - Dropdown **Kawasan** menunjukkan senarai negeri = token Meta berjaya.
   Kekal "Seluruh Malaysia" sahaja = token belum kena.
 - Muat naik satu gambar dan teruskan ke `/semak` — kalau gambar tidak papar,
