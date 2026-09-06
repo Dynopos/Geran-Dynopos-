@@ -87,7 +87,22 @@
                     </div>
                 </div>
             @endif
-            <p class="hint">Tangkap atas meja atau dinding kosong — latar rata paling senang dibuang.</p>
+            <p class="hint">
+                Tangkap atas meja atau dinding kosong — latar rata paling senang dibuang.
+                Had saiz {{ $this->uploadLimit() }}.
+            </p>
+
+            @if ($this->uploadLimitTooTight())
+                <div class="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+                    Pelayan ni hanya benarkan gambar sehingga <span class="font-semibold">{{ $this->uploadLimit() }}</span>.
+                    Gambar telefon selalunya lebih besar daripada tu, jadi muat naik akan gagal.
+                    <span class="mt-1.5 block text-amber-700/80 dark:text-amber-200/70">
+                        Pembetulan kekal: naikkan <code>upload_max_filesize</code> dan <code>post_max_size</code>
+                        dalam Forge &rarr; server &rarr; PHP. Sementara tu, kecilkan gambar dulu.
+                    </span>
+                </div>
+            @endif
+
             @error('product') <p class="err">{{ $message }}</p> @enderror
         </div>
 

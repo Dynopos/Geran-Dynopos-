@@ -5,6 +5,7 @@ namespace App\Livewire\Posters;
 use App\Services\Poster\PosterBasket;
 use App\Services\Poster\PosterService;
 use App\Services\Poster\ProductHandoff;
+use App\Support\Uploads;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -72,7 +73,7 @@ class Create extends Component
     protected function rules(): array
     {
         return [
-            'product' => 'nullable|image|max:8192',
+            'product' => 'nullable|image|max:'.Uploads::maxKilobytes(),
             'kicker' => 'nullable|string|max:24',
             'headline' => 'required|string|min:5|max:90',
             'subline' => 'nullable|string|max:120',
@@ -89,8 +90,20 @@ class Create extends Component
         return [
             'headline.required' => 'Tulis ayat utama poster.',
             'headline.max' => 'Ayat utama terlalu panjang — pendekkan supaya senang dibaca.',
+            'product.uploaded' => 'Gambar gagal dimuat naik. Biasanya kerana saiznya melebihi had pelayan ('.Uploads::maxLabel().').',
+            'product.max' => 'Gambar terlalu besar. Had pelayan ni :max KB.',
             'product.image' => 'Fail kena gambar (JPG, PNG atau WEBP).',
         ];
+    }
+
+    public function uploadLimit(): string
+    {
+        return Uploads::maxLabel();
+    }
+
+    public function uploadLimitTooTight(): bool
+    {
+        return Uploads::tooTightForPhonePhotos();
     }
 
     public function moods(): array

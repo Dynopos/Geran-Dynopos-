@@ -154,8 +154,14 @@ class PosterService
 
     private function runRenderer(string $htmlPath, string $outputPath, int $size): void
     {
+        $renderer = (string) config('dynoads.poster.renderer');
+
+        if (! is_file($renderer)) {
+            throw new RuntimeException('Skrip render poster tiada pada pelayan.');
+        }
+
         $process = new Process(
-            ['node', config('dynoads.poster.renderer'), $htmlPath, $outputPath, (string) $size],
+            ['node', $renderer, $htmlPath, $outputPath, (string) $size],
             base_path(),
             // Chromium sudah dipasang; jangan sesekali muat turun semasa render.
             ['PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD' => '1'] + array_filter([
@@ -163,18 +169,62 @@ class PosterService
                 'PLAYWRIGHT_CHROMIUM_PATH' => env('PLAYWRIGHT_CHROMIUM_PATH'),
             ]),
             null,
-            (float) config('dynoads.poster.render_timeout'),
+            $this->renderTimeout(),
         );
 
         try {
             $process->run();
         } catch (ProcessTimedOutException) {
-            throw new RuntimeException('Render poster ambil masa terlalu lama.');
+            throw new RuntimeException(
+                'Render poster ambil masa lebih '.(int) $this->renderTimeout().' saat dan dihentikan. '
+                .'Chromium mungkin belum dipasang pada pelayan.'
+            );
         }
 
         if (! $process->isSuccessful()) {
-            throw new RuntimeException('Render poster gagal: '.trim($process->getErrorOutput() ?: $process->getOutput()));
+            throw new RuntimeException('Render poster gagal: '.$this->explain(
+                trim($process->getErrorOutput() ?: $process->getOutput())
+            ));
         }
+    }
+
+    /**
+     * Berapa lama render dibenarkan berjalan.
+     *
+     * MESTI berakhir sebelum PHP membunuh permintaan. Kalau tidak, PHP mati
+     * dahulu dengan ralat 500 mentah — Livewire memaparkan halaman ralat penuh
+     * dalam iframe, dan peniaga nampak kotak hitam dan bukan ayat yang
+     * menerangkan apa yang berlaku.
+     */
+    private function renderTimeout(): float
+    {
+        $wanted = (float) config('dynoads.poster.render_timeout');
+        $phpLimit = (float) ini_get('max_execution_time');
+
+        // 0 bermakna tiada had (CLI, atau FPM yang dikonfigur begitu).
+        if ($phpLimit <= 0) {
+            return $wanted;
+        }
+
+        // Sisakan ruang untuk menyimpan fail dan memulangkan balasan.
+        return max(5.0, min($wanted, $phpLimit - 5));
+    }
+
+    /** Ayat yang berguna dari output Node, bukan longgokan stack trace. */
+    public function explain(string $output): string
+    {
+        $lower = mb_strtolower($output);
+
+        return match (true) {
+            str_contains($lower, "executable doesn't exist"),
+            str_contains($lower, 'please run the following command'),
+            str_contains($lower, 'browsertype.launch') => 'Chromium belum dipasang pada pelayan. '
+                .'Jalankan sekali: npx playwright install --with-deps chromium',
+            str_contains($lower, 'cannot find module') => 'Pakej Node tiada. Jalankan npm ci pada pelayan.',
+            str_contains($lower, 'not found') && str_contains($lower, 'node') => 'Node tiada pada pelayan.',
+            $output === '' => 'Tiada sebab dilaporkan oleh perender.',
+            default => str($output)->limit(300)->value(),
+        };
     }
 
     private function disk()
