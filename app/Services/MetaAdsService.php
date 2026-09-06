@@ -99,7 +99,7 @@ class MetaAdsService
             'object_story_spec' => json_encode([
                 'page_id' => (string) config('dynoads.meta.page_id'),
                 'link_data' => [
-                    'link' => config('dynoads.ad.link'),
+                    'link' => $this->whatsappLink(),
                     'message' => $message,
                     'image_hash' => $imageHash,
                     'call_to_action' => [
@@ -111,6 +111,25 @@ class MetaAdsService
         ];
 
         return $this->createObject("{$this->adAccountId}/adcreatives", $payload);
+    }
+
+    /**
+     * Link WhatsApp berserta ayat pra-isi dalam Bahasa Melayu.
+     *
+     * Tanpa parameter `text`, Meta mengisi ayat defaultnya sendiri dalam Bahasa
+     * Inggeris. Pelanggan hantar Inggeris, AI agent cermin Inggeris — walaupun
+     * iklan dan pelanggan dua-dua orang Malaysia.
+     */
+    public function whatsappLink(): string
+    {
+        $link = (string) config('dynoads.ad.link');
+        $prefill = trim((string) config('dynoads.ad.whatsapp_prefill'));
+
+        if ($prefill === '') {
+            return $link;
+        }
+
+        return $link.(str_contains($link, '?') ? '&' : '?').http_build_query(['text' => $prefill]);
     }
 
     /** Ad, sentiasa PAUSED. */

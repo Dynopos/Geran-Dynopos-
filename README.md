@@ -150,6 +150,17 @@ senarai negeri terus dari `GET /search?type=adgeolocation&country_code=MY`
 pilihan kekal "Seluruh Malaysia" — yang sudah pun mengecualikan Sabah, Sarawak
 dan Labuan mengikut `config/dynoads.php`.
 
+## Ayat pra-isi WhatsApp
+
+Bila pelanggan tekan butang WhatsApp pada iklan, satu ayat sudah terisi dalam kotak
+mesej dia. Kalau kita tidak menetapkannya, **Meta isi ayat defaultnya sendiri dalam
+Bahasa Inggeris** ("Hello! Can I get more info on this?"). Pelanggan hantar Inggeris,
+dan mana-mana AI agent di hujung sana akan cermin bahasa itu lalu membalas Inggeris —
+walaupun iklan dan pelanggan dua-dua orang Malaysia.
+
+Ayat lalai kita: `Hi, saya nak tahu lanjut pasal ni.`
+Tukar melalui `DYNOADS_WA_PREFILL` dalam `.env`, atau `config/dynoads.php`.
+
 ## Nota Fasa 0
 
 - `AdVariant::isOwnedByApp()` menapis setiap run/pause. Campaign yang bukan app
