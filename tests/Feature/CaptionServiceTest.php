@@ -1,58 +1,147 @@
 <?php
 
+use App\Services\Caption\CaptionWriter;
+use App\Services\Caption\ClaudeWriter;
+use App\Services\Caption\OpenAiWriter;
 use App\Services\CaptionService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
-it('memparse JSON caption dari balasan Claude', function () {
-    Http::fake(['*/v1/messages' => Http::response([
-        'content' => [['type' => 'text', 'text' => '["Caption satu.", "Caption dua."]']],
-    ])]);
+/** Balasan OpenAI dengan teks yang diberi. */
+function balasanOpenAi(string $text): array
+{
+    return ['choices' => [['message' => ['content' => $text]]]];
+}
+
+/** Balasan Claude dengan teks yang diberi. */
+function balasanClaude(string $text): array
+{
+    return ['content' => [['type' => 'text', 'text' => $text]]];
+}
+
+beforeEach(function () {
+    config()->set('dynoads.caption.driver', 'openai');
+    config()->set('dynoads.caption.openai.api_key', 'sk-ujian');
+});
+
+// ------------------------------------------------------------------- OpenAI
+
+it('memparse JSON caption dari balasan OpenAI', function () {
+    Http::fake(['*/v1/chat/completions' => Http::response(balasanOpenAi('["Caption satu.", "Caption dua."]'))]);
 
     $set = app(CaptionService::class)->generate('kira duit lambat', 'sistem POS', 2);
 
     expect($set->captions)->toBe(['Caption satu.', 'Caption dua.'])
         ->and($set->fromFallback)->toBeFalse();
-
-    Http::assertSent(fn (Request $r) => $r['model'] === config('dynoads.claude.model')
-        && str_contains($r['messages'][0]['content'], 'kira duit lambat'));
 });
 
+it('menghantar prompt sistem dan pengguna sebagai mesej berasingan', function () {
+    Http::fake(['*/v1/chat/completions' => Http::response(balasanOpenAi('["Satu."]'))]);
+
+    app(CaptionService::class)->generate('kira duit lambat', 'sistem POS fullset', 1);
+
+    Http::assertSent(function (Request $r) {
+        return $r['model'] === config('dynoads.caption.openai.model')
+            && $r['messages'][0]['role'] === 'system'
+            && str_contains($r['messages'][0]['content'], 'AI Nurin')
+            && $r['messages'][1]['role'] === 'user'
+            && str_contains($r['messages'][1]['content'], 'kira duit lambat')
+            // max_tokens ditolak oleh model OpenAI yang lebih baharu.
+            && isset($r['max_completion_tokens'])
+            && ! isset($r['max_tokens']);
+    });
+});
+
+it('guna Bearer token untuk OpenAI', function () {
+    Http::fake(['*/v1/chat/completions' => Http::response(balasanOpenAi('["Satu."]'))]);
+
+    app(CaptionService::class)->generate('masalah', 'tawaran', 1);
+
+    Http::assertSent(fn (Request $r) => $r->hasHeader('Authorization', 'Bearer sk-ujian'));
+});
+
+// ------------------------------------------------------------------- Claude
+
+it('boleh bertukar ke Claude tanpa mengubah kod', function () {
+    config()->set('dynoads.caption.driver', 'claude');
+    config()->set('dynoads.caption.claude.api_key', 'sk-ant-ujian');
+
+    Http::fake(['*/v1/messages' => Http::response(balasanClaude('["Caption satu."]'))]);
+
+    $set = app(CaptionService::class)->generate('masalah', 'tawaran', 1);
+
+    expect($set->captions)->toBe(['Caption satu.'])
+        ->and($set->fromFallback)->toBeFalse();
+
+    Http::assertSent(fn (Request $r) => $r->hasHeader('x-api-key', 'sk-ant-ujian')
+        && str_contains($r->url(), '/v1/messages'));
+});
+
+it('kedua-dua pembekal menerima prompt yang sama', function () {
+    // Prompt duduk dalam CaptionService, bukan dalam writer — jadi menukar
+    // pembekal tidak menukar kualiti copy.
+    $reflection = new ReflectionMethod(CaptionService::class, 'systemPrompt');
+    $prompt = $reflection->invoke(app(CaptionService::class));
+
+    expect($prompt)->toContain('AI Nurin')
+        ->toContain('Bahasa Melayu santai')
+        ->toContain('Tekan WhatsApp untuk info lanjut');
+});
+
+// ------------------------------------------------------------------ umum
+
 it('mengeluarkan JSON walaupun model bungkus dengan teks lain', function () {
-    Http::fake(['*/v1/messages' => Http::response([
-        'content' => [['type' => 'text', 'text' => "Ini caption anda:\n```json\n[\"Satu.\"]\n```"]],
-    ])]);
+    Http::fake(['*/v1/chat/completions' => Http::response(
+        balasanOpenAi("Ini caption anda:\n```json\n[\"Satu.\"]\n```")
+    )]);
 
     expect(app(CaptionService::class)->generate('masalah', 'tawaran', 1)->captions)->toBe(['Satu.']);
 });
 
 it('cuba semula bila balasan pertama bukan JSON', function () {
     Http::fakeSequence()
-        ->push(['content' => [['type' => 'text', 'text' => 'maaf saya tak faham']]])
-        ->push(['content' => [['type' => 'text', 'text' => '["Caption baik."]']]]);
+        ->push(balasanOpenAi('maaf saya tak faham'))
+        ->push(balasanOpenAi('["Caption baik."]'));
 
     expect(app(CaptionService::class)->generate('masalah', 'tawaran', 1)->captions)->toBe(['Caption baik.']);
 
     Http::assertSentCount(2);
 });
 
-it('jatuh ke caption asas bila Claude gagal — peniaga tidak tersekat', function () {
-    Http::fake(['*/v1/messages' => Http::response([], 500)]);
+it('jatuh ke caption asas bila pembekal gagal — peniaga tidak tersekat', function () {
+    Http::fake(['*' => Http::response([], 500)]);
 
     $set = app(CaptionService::class)->generate('kira duit lambat', 'sistem POS fullset', 2);
 
-    // Fallback mesti mengaku dirinya — kunci API yang tidak diisi tidak boleh
-    // kelihatan sama seperti AI yang menulis dengan teruk.
     expect($set->captions)->toHaveCount(2)
         ->and($set->fromFallback)->toBeTrue()
-        ->and($set->reason)->not->toBeEmpty()
+        ->and($set->reason)->toContain('OpenAI')
         ->and($set->captions[0])->toContain('Tekan WhatsApp untuk info lanjut');
 });
 
+it('menyebut kunci yang belum diisi, dan kunci pembekal yang betul', function () {
+    config()->set('dynoads.caption.openai.api_key', '');
+    Http::fake(['*' => Http::response([], 401)]);
+
+    $set = app(CaptionService::class)->generate('masalah', 'tawaran', 1);
+
+    expect($set->reason)->toContain('OPENAI_API_KEY')
+        ->and($set->reason)->not->toContain('ANTHROPIC');
+});
+
+it('menyebut ANTHROPIC_API_KEY bila pemandu Claude dipilih', function () {
+    config()->set('dynoads.caption.driver', 'claude');
+    config()->set('dynoads.caption.claude.api_key', '');
+    Http::fake(['*' => Http::response([], 401)]);
+
+    expect(app(CaptionService::class)->generate('masalah', 'tawaran', 1)->reason)
+        ->toContain('ANTHROPIC_API_KEY');
+});
+
 it('membuang perkataan larangan dari caption', function () {
-    Http::fake(['*/v1/messages' => Http::response([
-        'content' => [['type' => 'text', 'text' => '["Sistem POS terbaik di Malaysia, dijamin untung."]']],
-    ])]);
+    Http::fake(['*/v1/chat/completions' => Http::response(
+        balasanOpenAi('["Sistem POS terbaik di Malaysia, dijamin untung."]')
+    )]);
 
     $caption = app(CaptionService::class)->generate('masalah', 'tawaran', 1)->captions[0];
 
@@ -68,26 +157,6 @@ it('mengesan perkataan larangan dalam caption yang diedit sendiri', function () 
         ->and($service->hasForbiddenWord('Nak tengok demo?'))->toBeTrue();
 });
 
-it('menyebut kunci API yang tidak diisi sebagai sebab fallback', function () {
-    config()->set('dynoads.claude.api_key', '');
-    Http::fake(['*/v1/messages' => Http::response([], 401)]);
-
-    $set = app(CaptionService::class)->generate('masalah', 'tawaran', 1);
-
-    expect($set->fromFallback)->toBeTrue()
-        ->and($set->reason)->toContain('ANTHROPIC_API_KEY');
-});
-
-it('membezakan Claude yang gagal daripada kunci yang tiada', function () {
-    config()->set('dynoads.claude.api_key', 'kunci-ujian');
-    Http::fake(['*/v1/messages' => Http::response([], 500)]);
-
-    $set = app(CaptionService::class)->generate('masalah', 'tawaran', 1);
-
-    expect($set->reason)->toContain('Claude')
-        ->and($set->reason)->not->toContain('ANTHROPIC_API_KEY');
-});
-
 it('menandakan dakwaan superlatif yang Meta biasa tolak', function () {
     $service = app(CaptionService::class);
 
@@ -98,7 +167,17 @@ it('menandakan dakwaan superlatif yang Meta biasa tolak', function () {
 });
 
 it('dakwaan berisiko hanya diberi amaran, bukan menghalang', function () {
-    // Dakwaan itu mungkin memang benar untuk peniaga tu. Kita beritahu risikonya
-    // dan biarkan mereka putuskan — bukan menyekat pelancaran.
     expect(app(CaptionService::class)->hasForbiddenWord('POS termurah di Malaysia'))->toBeFalse();
+});
+
+it('pemandu tidak dikenali jatuh ke OpenAI, bukan meletup', function () {
+    config()->set('dynoads.caption.driver', 'entah-apa');
+
+    expect(app(CaptionWriter::class))->toBeInstanceOf(OpenAiWriter::class);
+});
+
+it('pemandu claude memberikan ClaudeWriter', function () {
+    config()->set('dynoads.caption.driver', 'claude');
+
+    expect(app(CaptionWriter::class))->toBeInstanceOf(ClaudeWriter::class);
 });

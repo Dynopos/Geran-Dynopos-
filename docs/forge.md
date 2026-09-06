@@ -213,8 +213,14 @@ Dua baris sahaja yang kosong:
 
 ```
 META_ACCESS_TOKEN=      # System User token, expiry Never
-ANTHROPIC_API_KEY=      # sk-ant-...
+OPENAI_API_KEY=         # sk-... dari platform.openai.com
 ```
+
+`OPENAI_API_KEY` boleh dibiar kosong buat sementara — app memulangkan caption
+asas yang boleh diedit, dan `/semak` memberitahu kenapa. Hanya
+`META_ACCESS_TOKEN` yang benar-benar wajib.
+
+Nak guna Claude pula: `CAPTION_DRIVER=claude` + `ANTHROPIC_API_KEY`.
 
 Yang lain sudah berisi. Tukar juga tiga ini untuk production:
 
