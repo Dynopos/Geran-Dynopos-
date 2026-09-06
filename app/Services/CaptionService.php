@@ -2,17 +2,22 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
+use App\Services\Caption\CaptionWriter;
 use RuntimeException;
 
 /**
- * Caption iklan. Semua panggilan Claude API lalu di sini —
- * tidak pernah terus dari Livewire (peraturan CLAUDE.md).
+ * Caption iklan. Semua panggilan LLM lalu di sini — tidak pernah terus dari
+ * Livewire (peraturan CLAUDE.md).
+ *
+ * Pembekal (OpenAI, Claude) disuntik. Prompt, penghuraian dan caption ganti
+ * kekal di sini, jadi menukar pembekal tidak menukar kualiti copy.
  *
  * LLM hanya menulis teks. Ia tidak pernah memanggil Meta (peraturan mutlak #5).
  */
 class CaptionService
 {
+    public function __construct(private CaptionWriter $writer) {}
+
     /**
      * Jana beberapa caption berbeza — satu untuk setiap gambar,
      * supaya split test membandingkan sudut ayat, bukan hanya gambar.
@@ -20,7 +25,7 @@ class CaptionService
     public function generate(string $problem, string $offer, int $count = 1): CaptionSet
     {
         $count = max(1, min($count, (int) config('dynoads.creative.max_images')));
-        $attempts = (int) config('dynoads.claude.retries') + 1;
+        $attempts = (int) config('dynoads.caption.retries') + 1;
         $last = null;
 
         for ($i = 0; $i < $attempts; $i++) {
@@ -42,40 +47,19 @@ class CaptionService
         // yang tidak diisi kelihatan seperti AI yang menulis dengan teruk.
         return CaptionSet::fromFallback(
             $this->fallback($problem, $offer, $count),
-            blank(config('dynoads.claude.api_key'))
-                ? 'ANTHROPIC_API_KEY belum diisi.'
-                : 'Claude tidak dapat dihubungi: '.($last?->getMessage() ?? 'sebab tidak diketahui'),
+            $this->writer->configured()
+                ? $this->writer->name().' tidak dapat dihubungi: '.($last?->getMessage() ?? 'sebab tidak diketahui')
+                : $this->writer->keyName().' belum diisi.',
         );
     }
 
     /** @return array<int, string> */
     protected function ask(string $problem, string $offer, int $count): array
     {
-        $response = Http::timeout((int) config('dynoads.claude.timeout'))
-            ->withHeaders([
-                'x-api-key' => (string) config('dynoads.claude.api_key'),
-                'anthropic-version' => (string) config('dynoads.claude.version'),
-            ])
-            ->post(rtrim((string) config('dynoads.claude.base_url'), '/').'/v1/messages', [
-                'model' => config('dynoads.claude.model'),
-                'max_tokens' => (int) config('dynoads.claude.max_tokens'),
-                'system' => $this->systemPrompt(),
-                'messages' => [[
-                    'role' => 'user',
-                    'content' => $this->userPrompt($problem, $offer, $count),
-                ]],
-            ]);
-
-        if ($response->failed()) {
-            throw new RuntimeException('Claude API gagal: '.$response->status());
-        }
-
-        $text = (string) collect($response->json('content', []))
-            ->where('type', 'text')
-            ->pluck('text')
-            ->implode("\n");
-
-        return $this->parse($text);
+        return $this->parse($this->writer->write(
+            $this->systemPrompt(),
+            $this->userPrompt($problem, $offer, $count),
+        ));
     }
 
     /** @return array<int, string> */
@@ -105,7 +89,7 @@ class CaptionService
     {
         $caption = trim(preg_replace('/[ \t]+/', ' ', $caption));
 
-        foreach ((array) config('dynoads.claude.forbidden_words') as $word) {
+        foreach ((array) config('dynoads.caption.forbidden_words') as $word) {
             $caption = preg_replace('/'.preg_quote($word, '/').'/iu', '', $caption);
         }
 
@@ -147,7 +131,7 @@ class CaptionService
 
     public function hasForbiddenWord(string $caption): bool
     {
-        foreach ((array) config('dynoads.claude.forbidden_words') as $word) {
+        foreach ((array) config('dynoads.caption.forbidden_words') as $word) {
             if (mb_stripos($caption, $word) !== false) {
                 return true;
             }

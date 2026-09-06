@@ -152,14 +152,35 @@ return [
         ],
     ],
 
-    'claude' => [
-        'api_key' => env('ANTHROPIC_API_KEY'),
-        'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-4-6'),
-        'base_url' => env('ANTHROPIC_BASE_URL', 'https://api.anthropic.com'),
-        'version' => '2023-06-01',
+    /*
+    |--------------------------------------------------------------------------
+    | Penulis caption
+    |--------------------------------------------------------------------------
+    |
+    | Pembekal boleh ditukar tanpa mengubah kod. Prompt, penghuraian JSON dan
+    | caption ganti duduk dalam CaptionService — hanya panggilan HTTP yang
+    | berbeza — jadi menukar pembekal tidak menukar kualiti copy.
+    |
+    */
+    'caption' => [
+        'driver' => env('CAPTION_DRIVER', 'openai'), // openai|claude
+
         'max_tokens' => 1024,
         'timeout' => 60,
         'retries' => 2,
+
+        'openai' => [
+            'api_key' => env('OPENAI_API_KEY'),
+            'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+            'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com'),
+        ],
+
+        'claude' => [
+            'api_key' => env('ANTHROPIC_API_KEY'),
+            'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-4-6'),
+            'base_url' => env('ANTHROPIC_BASE_URL', 'https://api.anthropic.com'),
+            'version' => '2023-06-01',
+        ],
 
         // Caption tak boleh menjanjikan hasil atau guna ayat larangan Meta.
         'forbidden_words' => [

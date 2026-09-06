@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Services\Caption\CaptionWriter;
+use App\Services\Caption\ClaudeWriter;
+use App\Services\Caption\OpenAiWriter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -29,6 +32,12 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->ensureStorageDirectoriesExist();
+
+        // Pembekal caption ditukar dari config sahaja.
+        $this->app->bind(CaptionWriter::class, fn () => match (config('dynoads.caption.driver')) {
+            'claude' => new ClaudeWriter,
+            default => new OpenAiWriter,
+        });
     }
 
     public function boot(): void

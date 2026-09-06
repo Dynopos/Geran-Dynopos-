@@ -55,7 +55,7 @@ npm install && npm run build        # layout auto-guna build kalau manifest wuju
 | `META_PAGE_ID` | `377330642350146` | Page yang linked dengan nombor WhatsApp |
 | `META_WA_PHONE` | `60187922844` | Format antarabangsa, tiada `+` |
 | `META_API_VERSION` | `v21.0` | Versi dipin — jangan auto-upgrade |
-| `ANTHROPIC_API_KEY` | `sk-ant-…` | Untuk caption |
+| `OPENAI_API_KEY` | `sk-…` | Untuk caption. Tukar pembekal dengan `CAPTION_DRIVER` |
 
 ---
 
@@ -149,6 +149,24 @@ senarai negeri terus dari `GET /search?type=adgeolocation&country_code=MY`
 (cache 24 jam), jadi ia sentiasa sepadan dengan akaun sebenar. Tanpa token,
 pilihan kekal "Seluruh Malaysia" — yang sudah pun mengecualikan Sabah, Sarawak
 dan Labuan mengikut `config/dynoads.php`.
+
+## Penulis caption
+
+Pembekal boleh ditukar dari `.env` sahaja:
+
+```
+CAPTION_DRIVER=openai      # atau claude
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+```
+
+Prompt, penghuraian JSON, penapis perkataan larangan dan caption ganti semuanya
+duduk dalam `CaptionService`. Hanya panggilan HTTP yang berbeza antara pembekal
+(`app/Services/Caption/`), jadi menukar pembekal **tidak menukar kualiti copy**.
+
+Bila pembekal gagal atau kunci belum diisi, app memulangkan caption asas yang
+boleh diedit — dan `/semak` memaparkan amaran yang menyebut kunci mana yang
+hilang. Fallback tidak pernah senyap.
 
 ## Enjin poster
 

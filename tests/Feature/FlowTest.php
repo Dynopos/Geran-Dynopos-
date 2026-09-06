@@ -16,14 +16,15 @@ use Livewire\Livewire;
 
 beforeEach(function () {
     Storage::fake('public');
+    config()->set('dynoads.caption.openai.api_key', 'sk-ujian');
 
     Http::fake([
         '*/search*' => Http::response(['data' => [
             ['key' => '3847', 'name' => 'Selangor'],
             ['key' => '3846', 'name' => 'Johor'],
         ]]),
-        '*/v1/messages' => Http::response([
-            'content' => [['type' => 'text', 'text' => '["Caption satu.", "Caption dua."]']],
+        '*/v1/chat/completions' => Http::response([
+            'choices' => [['message' => ['content' => '["Caption satu.", "Caption dua."]']]],
         ]),
         '*/adimages' => Http::response(['images' => ['1.jpg' => ['hash' => 'hash123']]]),
         '*/campaigns' => Http::response(['id' => 'c1']),
