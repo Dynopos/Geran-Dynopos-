@@ -86,10 +86,35 @@ it('creative guna butang WHATSAPP_MESSAGE dan link api.whatsapp.com', function (
         $spec = json_decode($request->data()['object_story_spec'], true);
 
         return $spec['page_id'] === '377330642350146'
-            && $spec['link_data']['link'] === 'https://api.whatsapp.com/send'
+            && str_starts_with($spec['link_data']['link'], 'https://api.whatsapp.com/send')
             && $spec['link_data']['image_hash'] === 'hash123'
             && $spec['link_data']['call_to_action']['type'] === 'WHATSAPP_MESSAGE';
     });
+});
+
+it('link WhatsApp membawa ayat pra-isi Bahasa Melayu', function () {
+    Http::fake(['*/adcreatives' => Http::response(['id' => 'cr1'])]);
+
+    app(MetaAdsService::class)->createCreative('DYNOADS-1-1-03SEP26', 'hash123', 'caption');
+
+    Http::assertSent(function (Request $request) {
+        $link = json_decode($request->data()['object_story_spec'], true)['link_data']['link'];
+        parse_str(parse_url($link, PHP_URL_QUERY) ?? '', $query);
+
+        // Tanpa ini Meta isi ayat defaultnya sendiri dalam Bahasa Inggeris.
+        return str_starts_with($link, 'https://api.whatsapp.com/send')
+            && ($query['text'] ?? '') === 'Hi, saya nak tahu lanjut pasal ni.';
+    });
+});
+
+it('link kekal bersih bila ayat pra-isi dikosongkan', function () {
+    config()->set('dynoads.ad.whatsapp_prefill', '');
+    Http::fake(['*/adcreatives' => Http::response(['id' => 'cr1'])]);
+
+    app(MetaAdsService::class)->createCreative('DYNOADS-1-1-03SEP26', 'hash123', 'caption');
+
+    Http::assertSent(fn (Request $request) => json_decode($request->data()['object_story_spec'], true)['link_data']['link']
+        === 'https://api.whatsapp.com/send');
 });
 
 it('ad dibuat PAUSED dan merujuk creative_id', function () {

@@ -61,6 +61,12 @@ return [
     'ad' => [
         'call_to_action_type' => 'WHATSAPP_MESSAGE',
         'link' => 'https://api.whatsapp.com/send',
+
+        // Ayat yang sudah terisi dalam kotak mesej pelanggan bila dia tekan
+        // butang WhatsApp. Kalau dibiar kosong, Meta isi ayat defaultnya sendiri
+        // — dalam Bahasa Inggeris ("Hello! Can I get more info on this?") — dan
+        // AI agent akan cermin bahasa tu lalu membalas Inggeris juga.
+        'whatsapp_prefill' => env('DYNOADS_WA_PREFILL', 'Hi, saya nak tahu lanjut pasal ni.'),
     ],
 
     'budget' => [
