@@ -47,7 +47,7 @@ it('menghantar ad set CONVERSATIONS ke WhatsApp dengan promoted_object', functio
 });
 
 it('seluruh Malaysia mengecualikan Sarawak, Labuan dan Sabah', function () {
-    $targeting = app(MetaAdsService::class)->buildTargeting(null);
+    $targeting = app(MetaAdsService::class)->buildTargeting();
 
     expect($targeting['geo_locations']['countries'])->toBe(['MY'])
         ->and(collect($targeting['geo_locations']['excluded_geo_locations']['regions'])->pluck('key')->all())
@@ -61,17 +61,30 @@ it('seluruh Malaysia mengecualikan Sarawak, Labuan dan Sabah', function () {
 });
 
 it('satu negeri guna geo_locations.regions dan tiada pengecualian', function () {
-    $targeting = app(MetaAdsService::class)->buildTargeting('3847');
+    $targeting = app(MetaAdsService::class)->buildTargeting(['3847']);
 
     expect($targeting['geo_locations']['regions'])->toBe([['key' => '3847']])
         ->and($targeting['geo_locations'])->not->toHaveKey('countries')
         ->and($targeting['targeting_automation']['individual_setting'])->toBe(['geo_locations' => 1]);
 });
 
+it('beberapa negeri dihantar sebagai satu senarai regions', function () {
+    $targeting = app(MetaAdsService::class)->buildTargeting(['3847', '3846', '3847']);
+
+    // Duplikat dibuang; Meta menerima berapa banyak negeri pun.
+    expect($targeting['geo_locations']['regions'])
+        ->toBe([['key' => '3847'], ['key' => '3846']])
+        ->and($targeting['geo_locations'])->not->toHaveKey('countries');
+});
+
+it('senarai negeri kosong bermakna seluruh Malaysia', function () {
+    expect(app(MetaAdsService::class)->buildTargeting([])['geo_locations']['countries'])->toBe(['MY']);
+});
+
 it('boleh matikan targeting_automation.individual_setting tanpa kesan lain', function () {
     config()->set('dynoads.targeting.send_geo_targeting_automation', false);
 
-    $targeting = app(MetaAdsService::class)->buildTargeting('3847');
+    $targeting = app(MetaAdsService::class)->buildTargeting(['3847']);
 
     expect($targeting['targeting_automation'])->toBe(['advantage_audience' => 1])
         ->and($targeting['geo_locations']['regions'])->toBe([['key' => '3847']]);

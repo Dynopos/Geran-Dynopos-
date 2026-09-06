@@ -7,7 +7,9 @@ use App\Livewire\AdSets\Run;
 use App\Models\AdSet;
 use App\Models\AdVariant;
 use App\Models\MetricDaily;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -38,7 +40,7 @@ beforeEach(function () {
 
 it('/buat menerima 2 gambar dan menyimpan set dengan variant siap crop', function () {
     Livewire::test(Create::class)
-        ->set('images', [
+        ->set('upload', [
             UploadedFile::fake()->image('a.jpg', 1600, 900),
             UploadedFile::fake()->image('b.jpg', 900, 1600),
         ])
@@ -64,6 +66,7 @@ it('/buat menerima 2 gambar dan menyimpan set dengan variant siap crop', functio
 it('/buat menolak lebih dari 4 gambar dan nombor telefon salah format', function () {
     Livewire::test(Create::class)
         ->set('images', collect(range(1, 5))->map(fn ($i) => UploadedFile::fake()->image("{$i}.jpg"))->all())
+        ->set('upload', [])
         ->set('problem', 'kira duit lambat')
         ->set('offer', 'sistem POS')
         ->set('phone', '+60187922844')
@@ -71,6 +74,76 @@ it('/buat menolak lebih dari 4 gambar dan nombor telefon salah format', function
         ->assertHasErrors(['images', 'phone']);
 
     expect(AdSet::count())->toBe(0);
+});
+
+it('memilih gambar satu-satu MENAMBAH, bukan menggantikan', function () {
+    // Atas telefon, galeri selalunya pulangkan satu gambar setiap kali. Kalau
+    // pilihan kedua menggantikan yang pertama, peniaga hanya dapat satu iklan
+    // tanpa tahu kenapa. Itu bug yang ujian ini menjaga.
+    Livewire::test(Create::class)
+        ->set('upload', [UploadedFile::fake()->image('satu.jpg')])
+        ->assertCount('images', 1)
+        ->set('upload', [UploadedFile::fake()->image('dua.jpg')])
+        ->assertCount('images', 2)
+        ->set('upload', [UploadedFile::fake()->image('tiga.jpg')])
+        ->assertCount('images', 3)
+        // Kotak pilih fail dikosongkan supaya pilihan seterusnya bermula bersih.
+        ->assertCount('upload', 0);
+});
+
+it('tidak menerima gambar melebihi had walaupun dipilih berkali-kali', function () {
+    $component = Livewire::test(Create::class);
+
+    foreach (range(1, 6) as $i) {
+        $component->set('upload', [UploadedFile::fake()->image("{$i}.jpg")]);
+    }
+
+    $component->assertCount('images', config('dynoads.creative.max_images'));
+});
+
+it('boleh membuang satu gambar dan nombor iklan disusun semula', function () {
+    Livewire::test(Create::class)
+        ->set('upload', [
+            UploadedFile::fake()->image('a.jpg'),
+            UploadedFile::fake()->image('b.jpg'),
+            UploadedFile::fake()->image('c.jpg'),
+        ])
+        ->call('removeImage', 1)
+        ->assertCount('images', 2);
+});
+
+it('boleh pilih beberapa negeri, dan Meta terima kesemuanya', function () {
+    Livewire::test(Create::class)
+        ->call('toggleRegion', '3847')
+        ->call('toggleRegion', '3846')
+        ->assertSet('regionKeys', ['3847', '3846'])
+        // Tekan sekali lagi = buang.
+        ->call('toggleRegion', '3847')
+        ->assertSet('regionKeys', ['3846'])
+        ->set('upload', [UploadedFile::fake()->image('a.jpg')])
+        ->set('problem', 'kira duit lambat waktu peak hour')
+        ->set('offer', 'sistem POS fullset, pasang di kedai')
+        ->set('phone', '60187922844')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $set = AdSet::firstOrFail();
+
+    expect($set->region_keys)->toBe(['3846'])
+        ->and($set->region_names)->toBe(['Johor'])
+        ->and($set->regionLabel())->toBe('Johor');
+});
+
+it('tiada negeri dipilih bermakna seluruh Malaysia', function () {
+    Livewire::test(Create::class)
+        ->set('upload', [UploadedFile::fake()->image('a.jpg')])
+        ->set('problem', 'kira duit lambat waktu peak hour')
+        ->set('offer', 'sistem POS fullset, pasang di kedai')
+        ->set('phone', '60187922844')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(AdSet::firstOrFail()->regionLabel())->toBe('Seluruh Malaysia');
 });
 
 it('/semak menjana caption, dan approve membuat campaign PAUSED sahaja', function () {
@@ -147,4 +220,30 @@ it('halaman /buat boleh dibuka tanpa ralat', function () {
 
 it('/ mengalihkan ke /buat', function () {
     $this->get('/')->assertRedirect('/buat');
+});
+
+it('tidak pernah memaparkan token bila senarai negeri gagal ditarik', function () {
+    // Mesej pengecualian HTTP membawa URL penuh, dan URL Graph API mengandungi
+    // ?access_token=. Peraturan mutlak #8.
+    config()->set('dynoads.meta.token', 'EAAB_TOKEN_RAHSIA_UNTUK_UJIAN');
+    Cache::flush();
+
+    // beforeEach sudah daftar fake yang berjaya untuk */search*, dan stub
+    // pertama yang menang — jadi mulakan dengan factory bersih.
+    Http::swap(new Factory);
+
+    Http::fake(['*/search*' => Http::response([
+        'error' => ['message' => 'Invalid OAuth access token.', 'code' => 190],
+    ], 401)]);
+
+    $component = Livewire::test(Create::class);
+
+    expect($component->get('regions'))->toBe([])
+        ->and($component->get('regionError'))
+        ->toBeString()
+        ->not->toContain('EAAB_TOKEN_RAHSIA_UNTUK_UJIAN')
+        ->not->toContain('access_token');
+
+    $component->assertDontSee('EAAB_TOKEN_RAHSIA_UNTUK_UJIAN')
+        ->assertDontSee('access_token');
 });

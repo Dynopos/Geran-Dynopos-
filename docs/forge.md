@@ -150,12 +150,18 @@ META_ACCESS_TOKEN=      # System User token, expiry Never
 ANTHROPIC_API_KEY=      # sk-ant-...
 ```
 
-Yang lain sudah berisi. Tukar juga dua ini untuk production:
+Yang lain sudah berisi. Tukar juga tiga ini untuk production:
 
 ```
 APP_ENV=production
 APP_DEBUG=false
+APP_URL=https://dynoads.on-forge.com
 ```
+
+**`APP_URL` mesti tepat.** Gambar iklan dipapar melalui `Storage::url()`, yang
+membina URL mutlak dari `APP_URL`. Kalau ia masih `http://localhost:8000`, setiap
+gambar dalam `/semak`, `/run` dan `/dashboard` akan pecah — halaman tetap keluar,
+cuma gambar tidak.
 
 `APP_DEBUG=true` di production akan memaparkan isi `.env` — termasuk token — pada
 mana-mana halaman ralat. Jangan tinggalkan ia hidup.

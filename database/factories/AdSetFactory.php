@@ -17,8 +17,8 @@ class AdSetFactory extends Factory
             'problem' => 'kira duit lambat waktu peak hour',
             'offer' => 'sistem POS fullset, pasang di kedai',
             'phone' => '60187922844',
-            'region_key' => null,
-            'region_name' => null,
+            'region_keys' => [],
+            'region_names' => [],
             'daily_budget_sen' => 3700,
             'status' => 'draft',
         ];
