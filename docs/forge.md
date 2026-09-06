@@ -48,7 +48,7 @@ mudah di Forge: Site → Settings → Redirects, `www.dynoads.my` → `dynoads.m
 |---|---|
 | Web Directory | `/public` |
 | PHP Version | **8.3 atau 8.4** |
-| Repository | `Dynopos/Dynopos` |
+| Repository | `Dynopos/Dynopos` (BUKAN `Dynopos/Dynoads` — itu kosong) |
 | Branch | `main` |
 
 **Jangan pilih PHP 8.5.** Projek ini Laravel 11, yang menyokong PHP 8.2–8.4 secara rasmi.

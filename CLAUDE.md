@@ -1,5 +1,7 @@
 # CLAUDE.md — Dyno Ads
-Fail ini duduk di root repo `Dynopos/Dynoads`. Claude Code baca setiap sesi.
+Fail ini duduk di root repo **`Dynopos/Dynopos`** — bukan `Dynopos/Dynoads`.
+Repo `Dynoads` wujud tetapi kosong; jangan push ke sana. Forge (`dynoads.my`)
+menarik dari `Dynopos/Dynopos:main`. Claude Code baca fail ini setiap sesi.
 Spec penuh: `docs/dyno-ads-spec-v0.2.md` (v0.1 disimpan di `docs/dyno-ads-spec.md` sebagai sejarah).
 
 ---

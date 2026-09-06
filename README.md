@@ -25,8 +25,8 @@ bukan bandingkan adset dalam satu campaign.
 ## Setup
 
 ```bash
-git clone https://github.com/Dynopos/dynoads.git
-cd dynoads
+git clone https://github.com/Dynopos/Dynopos.git
+cd Dynopos
 
 composer install
 cp .env.example .env
@@ -177,6 +177,19 @@ Tukar ke pembekal API dengan `DYNOADS_REMOVER_DRIVER=http`.
 
 Render melalui Playwright — lihat [`docs/forge.md`](docs/forge.md) untuk
 pemasangan Chromium sekali sahaja pada pelayan.
+
+### Poster terus jadi iklan
+
+Selepas jana poster, tekan **Guna poster ni untuk iklan**. Poster masuk senarai
+(maksimum 4), dan `/buat` memaparkannya sebagai creative bersama gambar yang
+dimuat naik. Tiada muat turun, tiada muat naik semula.
+
+Poster **disalin** ke folder set iklan, bukan dirujuk. Poster boleh dijana semula
+atau dipadam kemudian; creative iklan mesti kekal seperti masa ia dilancarkan.
+
+`ad_variants.source_type` merekod asal setiap creative (`upload` atau `poster`,
+dan `existing_post` menyusul pada Fasa 1) supaya laporan Fasa 5 boleh
+membandingkan prestasi antara keduanya.
 
 ## Ayat pra-isi WhatsApp
 

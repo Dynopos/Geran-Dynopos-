@@ -1,13 +1,18 @@
 <?php
 
+use App\Livewire\AdSets\Create;
+use App\Models\AdSet;
 use App\Models\PosterJob;
 use App\Services\Poster\Backgrounds\AiDriver;
 use App\Services\Poster\Backgrounds\StockDriver;
+use App\Services\Poster\PosterBasket;
 use App\Services\Poster\PosterService;
 use App\Services\Poster\Removers\GdRemover;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 
 /** Gambar produk atas latar rata — seperti tangkapan atas meja putih. */
 function produkAtasLatarRata(int $rgb = 0xFFFFFF): string
@@ -162,4 +167,147 @@ it('cache_key unik dikuatkuasakan pada peringkat pangkalan data', function () {
 
     expect(fn () => PosterJob::create(['template' => 'promo-meletup', 'data' => [], 'cache_key' => 'sama']))
         ->toThrow(UniqueConstraintViolationException::class);
+});
+
+// ------------------------------------------------- poster terus jadi creative
+
+/** Poster siap render, tanpa memanggil Playwright. */
+function posterSiap(int $n = 1): PosterJob
+{
+    $path = "posters/ujian-{$n}.png";
+    $im = imagecreatetruecolor(1080, 1080);
+    imagefill($im, 0, 0, imagecolorallocate($im, 30 * $n, 90, 200));
+    ob_start();
+    imagepng($im);
+    Storage::disk('public')->put($path, ob_get_clean());
+    imagedestroy($im);
+
+    return PosterJob::create([
+        'template' => 'promo-meletup',
+        'data' => ['headline' => "Poster {$n}"],
+        'cache_key' => "ujian-{$n}",
+        'output_path' => $path,
+        'status' => 'done',
+    ]);
+}
+
+it('bakul mengekalkan turutan peniaga menambah poster', function () {
+    $basket = app(PosterBasket::class);
+    [$a, $b, $c] = [posterSiap(1), posterSiap(2), posterSiap(3)];
+
+    $basket->add($c->id);
+    $basket->add($a->id);
+    $basket->add($b->id);
+
+    expect($basket->jobs()->pluck('id')->all())->toBe([$c->id, $a->id, $b->id]);
+});
+
+it('bakul tidak menerima poster yang sama dua kali', function () {
+    $basket = app(PosterBasket::class);
+    $job = posterSiap();
+
+    $basket->add($job->id);
+    $basket->add($job->id);
+
+    expect($basket->count())->toBe(1);
+});
+
+it('bakul berhenti pada had creative', function () {
+    $basket = app(PosterBasket::class);
+
+    foreach (range(1, 6) as $n) {
+        $basket->add(posterSiap($n)->id);
+    }
+
+    expect($basket->count())->toBe((int) config('dynoads.creative.max_images'));
+});
+
+it('poster dalam bakul jadi creative iklan tanpa muat turun', function () {
+    Http::fake(['*' => Http::response(['data' => []])]);
+
+    $basket = app(PosterBasket::class);
+    $basket->add(posterSiap(1)->id);
+    $basket->add(posterSiap(2)->id);
+
+    Livewire::test(Create::class)
+        ->set('problem', 'kira duit lambat waktu peak hour')
+        ->set('offer', 'sistem POS fullset, pasang di kedai')
+        ->set('phone', '60187922844')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $set = AdSet::firstOrFail();
+
+    expect($set->variants)->toHaveCount(2)
+        ->and($set->variants->pluck('source_type')->all())->toBe(['poster', 'poster'])
+        ->and($set->variants->pluck('poster_job_id')->filter())->toHaveCount(2);
+
+    // Disalin, bukan dirujuk — poster boleh dijana semula atau dipadam kemudian,
+    // tetapi creative iklan mesti kekal seperti masa ia dilancarkan.
+    $imej = $set->variants->first()->image_path;
+
+    expect($imej)->toContain("dynoads/{$set->id}/")
+        ->and(Storage::disk('public')->exists($imej))->toBeTrue()
+        ->and(getimagesize(Storage::disk('public')->path($imej)))->toMatchArray([0 => 1080, 1 => 1080]);
+});
+
+it('bakul dikosongkan selepas set iklan dibuat', function () {
+    Http::fake(['*' => Http::response(['data' => []])]);
+
+    $basket = app(PosterBasket::class);
+    $basket->add(posterSiap()->id);
+
+    Livewire::test(Create::class)
+        ->set('problem', 'kira duit lambat waktu peak hour')
+        ->set('offer', 'sistem POS fullset, pasang di kedai')
+        ->set('phone', '60187922844')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($basket->count())->toBe(0);
+});
+
+it('poster dan gambar upload boleh bercampur, poster didahulukan', function () {
+    Http::fake(['*' => Http::response(['data' => []])]);
+
+    app(PosterBasket::class)->add(posterSiap()->id);
+
+    Livewire::test(Create::class)
+        ->set('upload', [UploadedFile::fake()->image('gambar.jpg')])
+        ->set('problem', 'kira duit lambat waktu peak hour')
+        ->set('offer', 'sistem POS fullset, pasang di kedai')
+        ->set('phone', '60187922844')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(AdSet::firstOrFail()->variants->pluck('source_type')->all())
+        ->toBe(['poster', 'upload']);
+});
+
+it('menolak bila gabungan poster dan gambar melebihi had', function () {
+    $basket = app(PosterBasket::class);
+    foreach (range(1, 3) as $n) {
+        $basket->add(posterSiap($n)->id);
+    }
+
+    Livewire::test(Create::class)
+        ->set('images', collect(range(1, 3))->map(fn ($i) => UploadedFile::fake()->image("{$i}.jpg"))->all())
+        ->set('problem', 'kira duit lambat waktu peak hour')
+        ->set('offer', 'sistem POS fullset, pasang di kedai')
+        ->set('phone', '60187922844')
+        ->call('save')
+        ->assertHasErrors('images');
+
+    expect(AdSet::count())->toBe(0);
+});
+
+it('menolak bila tiada poster mahupun gambar', function () {
+    Livewire::test(Create::class)
+        ->set('problem', 'kira duit lambat waktu peak hour')
+        ->set('offer', 'sistem POS fullset, pasang di kedai')
+        ->set('phone', '60187922844')
+        ->call('save')
+        ->assertHasErrors('images');
+
+    expect(AdSet::count())->toBe(0);
 });
