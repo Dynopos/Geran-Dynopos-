@@ -29,11 +29,29 @@ Pastikan branch yang dipilih benar-benar mengandungi `bootstrap/app.php`, `app/`
 
 ## 3. Deploy script
 
-Site → **Deployments** → **Deployment Script**. Ganti isi dengan ini:
+Site → **Deployments** → **Deployment Script**.
+
+**Jangan padam baris yang Forge sudah letak di atas.** Bergantung pada sama ada
+zero-downtime deploy dihidupkan, Forge menyediakan pembukaan yang berbeza — mod
+biasa ada `cd .../nama-site` dan `git pull`, mod zero-downtime tiada (Forge sendiri
+sudah clone ke dalam `releases/{id}/` dan menjalankan script dari situ).
+
+Kekalkan pembukaan Forge, kemudian **tambah blok di bawah selepasnya**, sebelum
+apa-apa baris composer yang sedia ada:
 
 ```bash
-cd /home/forge/dynoads.on-forge.com
-git pull origin $FORGE_SITE_BRANCH
+# ---------------------------------------------------------------- WAJIB DULU
+# Zero-downtime deploy menggantikan folder `storage` dalam release dengan symlink
+# ke folder shared — yang kosong pada deploy pertama. Direktori storage/ dalam git
+# terus dipintas. composer install memanggil package:discover, yang boot Laravel,
+# yang perlukan storage/framework/views wujud. Kalau tiada:
+#   In Compiler.php line 67: Please provide a valid cache path.
+mkdir -p storage/framework/cache/data \
+         storage/framework/sessions \
+         storage/framework/views \
+         storage/app/public \
+         storage/logs \
+         bootstrap/cache
 
 $FORGE_COMPOSER install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
@@ -42,8 +60,9 @@ $FORGE_COMPOSER install --no-dev --no-interaction --prefer-dist --optimize-autol
 npm ci
 npm run build
 
-# Fasa 0 guna sqlite — fail DB tidak masuk git, jadi cipta kalau belum ada.
-touch database/database.sqlite
+# Fail sqlite duduk dalam storage/ (yang dikongsi antara release), BUKAN dalam
+# database/ (yang dicipta semula setiap deploy). Lihat bahagian Database di bawah.
+touch storage/app/database.sqlite
 
 $FORGE_PHP artisan migrate --force
 
@@ -55,6 +74,40 @@ $FORGE_PHP artisan optimize
 ( flock -w 10 9 || exit 1
     echo 'Restarting FPM...'; sudo -S service $FORGE_PHP_FPM reload ) 9>/tmp/fpmlock
 ```
+
+## 3B. Database — baca ini kalau zero-downtime dihidupkan
+
+Fasa 0 guna sqlite. Laluan lalai Laravel ialah `database/database.sqlite` — dan
+dalam mod zero-downtime, folder `database/` adalah **sebahagian daripada release**,
+bukan dikongsi. Setiap deploy mencipta release baru, jadi anda dapat fail sqlite
+kosong: semua set iklan, variant dan `auto_actions` hilang senyap. Tiada ralat,
+tiada amaran. Data cuma hilang.
+
+Hanya `storage/` dan `.env` yang Forge kongsi antara release.
+
+Jadi tunjukkan sqlite ke dalam `storage/`. Dalam tab **Environment**:
+
+```
+DB_CONNECTION=sqlite
+DB_DATABASE=/home/forge/dynoads.on-forge.com/storage/app/database.sqlite
+```
+
+Laluan mutlak, bukan relatif. Deploy script di atas sudah `touch` fail itu.
+
+**Alternatif yang lebih kemas:** guna MySQL. Forge sudah sediakan pelayan MySQL,
+dan Fasa 7 akan bertukar ke MySQL juga — jadi buat sekarang menjimatkan kerja
+kemudian. Buat database dalam Server → Database, kemudian:
+
+```
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=dynoads
+DB_USERNAME=forge
+DB_PASSWORD=<dari Forge>
+```
+
+Kalau guna MySQL, buang baris `touch storage/app/database.sqlite` dari script.
 
 ### Kenapa `npm run build` perlu
 
@@ -105,7 +158,25 @@ php artisan key:generate --force
 - Muat naik satu gambar dan teruskan ke `/semak` — kalau gambar tidak papar,
   `storage:link` tidak jalan.
 
-## 6. Kebenaran fail
+## 6. Nota PHP 8.5
+
+Atas PHP 8.5, log deploy memaparkan amaran ini dari dalam Laravel sendiri:
+
+```
+Deprecated: Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5,
+use Pdo\Mysql::ATTR_SSL_CA instead
+in vendor/laravel/framework/config/database.php on line 81
+```
+
+Ia **notice, bukan ralat** — ia tidak menggagalkan deploy dan tidak dipapar kepada
+pengguna bila `APP_DEBUG=false`. Tetapi ia datang dari kod rangka kerja yang kita
+tidak boleh betulkan sendiri, dan ia akan memenuhi `storage/logs` setiap request.
+
+Laravel 11 menyokong PHP 8.2–8.4 secara rasmi. Kalau amaran ni mengganggu, pasang
+PHP 8.4 pada server (Server → PHP → pasang versi baru) dan tukar site ini sahaja
+kepada 8.4 — versi PHP dipilih per-site, jadi site lain tidak terjejas.
+
+## 7. Kebenaran fail
 
 Kalau ada ralat "failed to open stream: Permission denied" pada `storage/` atau
 `database/database.sqlite`, jalankan melalui Site → **Commands**:
