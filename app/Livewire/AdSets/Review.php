@@ -23,6 +23,9 @@ class Review extends Component
 
     public ?string $error = null;
 
+    /** Diisi bila caption datang dari acuan asas, bukan dari Claude. */
+    public ?string $fallbackReason = null;
+
     public function mount(AdSet $adSet, CaptionService $captions): void
     {
         $this->adSet = $adSet->load('variants');
@@ -30,14 +33,16 @@ class Review extends Component
         $missing = $this->adSet->variants->whereNull('caption');
 
         if ($missing->isNotEmpty()) {
-            $generated = $captions->generate(
+            $set = $captions->generate(
                 $this->adSet->problem,
                 $this->adSet->offer,
                 $missing->count()
             );
 
+            $this->fallbackReason = $set->fromFallback ? $set->reason : null;
+
             foreach ($missing->values() as $i => $variant) {
-                $variant->update(['caption' => $generated[$i] ?? $generated[0]]);
+                $variant->update(['caption' => $set->captions[$i] ?? $set->captions[0]]);
             }
 
             $this->adSet->load('variants');
@@ -50,14 +55,16 @@ class Review extends Component
 
     public function regenerate(CaptionService $captions): void
     {
-        $generated = $captions->generate(
+        $set = $captions->generate(
             $this->adSet->problem,
             $this->adSet->offer,
             $this->adSet->variants->count()
         );
 
+        $this->fallbackReason = $set->fromFallback ? $set->reason : null;
+
         foreach ($this->adSet->variants->values() as $i => $variant) {
-            $variant->update(['caption' => $generated[$i] ?? $generated[0]]);
+            $variant->update(['caption' => $set->captions[$i] ?? $set->captions[0]]);
             $this->captions[$variant->id] = (string) $variant->caption;
         }
 
@@ -106,8 +113,19 @@ class Review extends Component
         return $this->redirectRoute('ad-sets.run', ['adSet' => $this->adSet], navigate: true);
     }
 
-    public function render()
+    /** @return array<int, array<int, string>> dakwaan berisiko ikut id variant */
+    public function riskyClaims(CaptionService $captions): array
     {
-        return view('livewire.ad-sets.review');
+        return collect($this->captions)
+            ->map(fn (string $caption) => $captions->riskyClaims($caption))
+            ->filter()
+            ->all();
+    }
+
+    public function render(CaptionService $captions)
+    {
+        return view('livewire.ad-sets.review', [
+            'risiko' => $this->riskyClaims($captions),
+        ]);
     }
 }
