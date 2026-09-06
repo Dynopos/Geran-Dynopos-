@@ -1,0 +1,165 @@
+<?php
+
+use App\Models\PosterJob;
+use App\Services\Poster\Backgrounds\AiDriver;
+use App\Services\Poster\Backgrounds\StockDriver;
+use App\Services\Poster\PosterService;
+use App\Services\Poster\Removers\GdRemover;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+
+/** Gambar produk atas latar rata — seperti tangkapan atas meja putih. */
+function produkAtasLatarRata(int $rgb = 0xFFFFFF): string
+{
+    $path = sys_get_temp_dir().'/ujian-rata-'.$rgb.'.png';
+    $im = imagecreatetruecolor(600, 600);
+    imagefill($im, 0, 0, imagecolorallocate($im, ($rgb >> 16) & 255, ($rgb >> 8) & 255, $rgb & 255));
+    imagefilledrectangle($im, 150, 150, 450, 450, imagecolorallocate($im, 20, 40, 90));
+    imagepng($im, $path);
+    imagedestroy($im);
+
+    return $path;
+}
+
+/** Gambar produk atas latar sibuk — seperti tangkapan dalam kedai bersepah. */
+function produkAtasLatarSibuk(): string
+{
+    $path = sys_get_temp_dir().'/ujian-sibuk.png';
+    $im = imagecreatetruecolor(600, 600);
+    mt_srand(7);
+    for ($y = 0; $y < 600; $y += 5) {
+        for ($x = 0; $x < 600; $x += 5) {
+            imagefilledrectangle($im, $x, $y, $x + 5, $y + 5,
+                imagecolorallocate($im, mt_rand(40, 220), mt_rand(40, 220), mt_rand(40, 220)));
+        }
+    }
+    imagefilledrectangle($im, 150, 150, 450, 450, imagecolorallocate($im, 20, 40, 90));
+    imagepng($im, $path);
+    imagedestroy($im);
+
+    return $path;
+}
+
+beforeEach(function () {
+    Storage::fake('public');
+    config()->set('dynoads.poster.disk', 'public');
+});
+
+// ----------------------------------------------------------------- buang latar
+
+it('membuang latar bila gambar ditangkap atas latar rata', function () {
+    $cutout = (new GdRemover)->cutout(produkAtasLatarRata());
+
+    expect($cutout)->not->toBeNull();
+
+    $im = imagecreatefrompng(Storage::disk('public')->path($cutout));
+
+    // Penjuru jadi lut sinar; produk di tengah kekal pekat.
+    expect((imagecolorat($im, 5, 5) >> 24) & 0x7F)->toBe(127)
+        ->and((imagecolorat($im, 300, 300) >> 24) & 0x7F)->toBe(0);
+});
+
+it('mengalah pada latar sibuk dan bukan memulangkan hasil bercalar', function () {
+    // Isian banjir atas latar sibuk tidak gagal dengan bersih — ia mengeluarkan
+    // gambar berlubang yang nampak lebih teruk daripada gambar asal. Lebih baik
+    // tidak menyentuhnya langsung.
+    expect((new GdRemover)->cutout(produkAtasLatarSibuk()))->toBeNull();
+});
+
+it('membuang latar berwarna, bukan putih sahaja', function () {
+    expect((new GdRemover)->cutout(produkAtasLatarRata(0x2E7D32)))->not->toBeNull();
+});
+
+// -------------------------------------------------------------------- latar AI
+
+it('prompt AI melarang teks, logo dan papan tanda', function () {
+    // Peraturan mutlak #7. Model imej tidak boleh dipercayai mengeja Melayu,
+    // jadi kita tidak benarkan ia mencuba.
+    $prompt = app(AiDriver::class)->prompt('kafe', 'kedai kopi');
+
+    expect(strtolower($prompt))
+        ->toContain('no text')
+        ->toContain('no logos')
+        ->toContain('no signage')
+        ->toContain('cafe counter');
+});
+
+it('jatuh ke latar stock bila pembekal AI gagal', function () {
+    config()->set('dynoads.poster.background.endpoint', 'https://contoh.test/jana');
+    config()->set('dynoads.poster.background.api_key', 'kunci-ujian');
+    Http::fake(['*' => Http::response([], 500)]);
+
+    $path = app(AiDriver::class)->make('kafe');
+
+    // Peniaga tetap dapat latar. Pembekal down bukan alasan untuk gagal.
+    expect($path)->toContain('stock-kafe')
+        ->and(Storage::disk('public')->exists($path))->toBeTrue();
+});
+
+it('guna stock bila tiada pembekal AI dikonfigur', function () {
+    config()->set('dynoads.poster.background.endpoint', null);
+    Http::preventStrayRequests();
+
+    expect(app(AiDriver::class)->make('studio'))->toContain('stock-studio');
+});
+
+it('guna semula latar AI yang sama untuk mood dan industri yang sama', function () {
+    config()->set('dynoads.poster.background.endpoint', 'https://contoh.test/jana');
+    config()->set('dynoads.poster.background.api_key', 'kunci-ujian');
+    Http::fake(['*' => Http::response(base64_encode('imej-palsu'), 200, ['Content-Type' => 'image/png'])]);
+
+    $ai = app(AiDriver::class);
+    $satu = $ai->make('kafe', 'kedai kopi');
+    $dua = $ai->make('kafe', 'kedai kopi');
+
+    expect($dua)->toBe($satu);
+    Http::assertSentCount(1);
+});
+
+it('latar stock 1080x1080', function () {
+    $path = (new StockDriver)->make('kedai');
+
+    expect(getimagesize(Storage::disk('public')->path($path)))->toMatchArray([0 => 1080, 1 => 1080]);
+});
+
+// -------------------------------------------------------------------- auto-fit
+
+it('mengecilkan font supaya teks panjang tetap muat, tidak pernah terpotong', function () {
+    $pendek = fit('Promo hebat', 34, 1080, 0.078, 0.042);
+    $panjang = fit(str_repeat('Kira duit lambat waktu peak hour ', 4), 34, 1080, 0.078, 0.042);
+
+    expect($pendek)->toBe(84)
+        ->and($panjang)->toBeLessThan($pendek)
+        // Tidak pernah lebih kecil daripada had yang masih boleh dibaca atas telefon.
+        ->and($panjang)->toBeGreaterThanOrEqual((int) round(1080 * 0.042));
+});
+
+it('teks kosong tidak memecahkan pengiraan saiz font', function () {
+    expect(fit('', 34, 1080, 0.078, 0.042))->toBe(84)
+        ->and(fit(null, 34, 1080, 0.078, 0.042))->toBe(84);
+});
+
+// ----------------------------------------------------------------------- cache
+
+it('input sama menghasilkan cache_key sama', function () {
+    $svc = app(PosterService::class);
+    $data = ['headline' => 'Promo', 'price' => 'RM99'];
+
+    expect($svc->cacheKey('promo-meletup', $data, 'stock', 'kafe', null))
+        ->toBe($svc->cacheKey('promo-meletup', array_reverse($data, true), 'stock', 'kafe', null));
+});
+
+it('teks berbeza menghasilkan cache_key berbeza', function () {
+    $svc = app(PosterService::class);
+
+    expect($svc->cacheKey('promo-meletup', ['headline' => 'A'], 'stock', 'kafe', null))
+        ->not->toBe($svc->cacheKey('promo-meletup', ['headline' => 'B'], 'stock', 'kafe', null));
+});
+
+it('cache_key unik dikuatkuasakan pada peringkat pangkalan data', function () {
+    PosterJob::create(['template' => 'promo-meletup', 'data' => [], 'cache_key' => 'sama']);
+
+    expect(fn () => PosterJob::create(['template' => 'promo-meletup', 'data' => [], 'cache_key' => 'sama']))
+        ->toThrow(UniqueConstraintViolationException::class);
+});

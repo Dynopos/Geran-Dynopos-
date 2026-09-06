@@ -150,6 +150,34 @@ senarai negeri terus dari `GET /search?type=adgeolocation&country_code=MY`
 pilihan kekal "Seluruh Malaysia" — yang sudah pun mengecualikan Sabah, Sarawak
 dan Labuan mengikut `config/dynoads.php`.
 
+## Enjin poster
+
+`/poster` — peniaga upload gambar produk, app buang latarnya dan letak atas
+suasana yang kemas, teks dari HTML.
+
+Pembahagian kerja yang tidak boleh dilanggar (peraturan mutlak #7):
+
+| Siapa | Buat apa |
+|---|---|
+| Peniaga | gambar produk sebenar mereka |
+| AI | latar/suasana sahaja — tidak pernah produk, tidak pernah teks |
+| HTML | setiap patah teks pada poster |
+
+AI tidak pernah mereka-reka produk yang peniaga tidak jual, dan tidak pernah
+menulis teks — model imej tidak boleh dipercayai mengeja Melayu.
+
+**Buang latar** guna `GdRemover` secara lalai: isian banjir dari empat penjuru,
+tiada API, tiada kos. Ia memeriksa sempadan gambar dahulu — kalau latar tidak
+rata, ia mengalah dan memulangkan null, dan poster membingkaikan gambar asal
+sebagai kad. Hasil separuh jadi yang bercalar lebih teruk daripada tidak mencuba.
+Tukar ke pembekal API dengan `DYNOADS_REMOVER_DRIVER=http`.
+
+**Latar** guna `StockDriver` secara lalai (dijana dengan GD, percuma). Tetapkan
+`DYNOADS_BG_DRIVER=ai` + endpoint untuk latar AI; kegagalan jatuh balik ke stock.
+
+Render melalui Playwright — lihat [`docs/forge.md`](docs/forge.md) untuk
+pemasangan Chromium sekali sahaja pada pelayan.
+
 ## Ayat pra-isi WhatsApp
 
 Bila pelanggan tekan butang WhatsApp pada iklan, satu ayat sudah terisi dalam kotak
