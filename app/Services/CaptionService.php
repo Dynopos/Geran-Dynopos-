@@ -16,10 +16,8 @@ class CaptionService
     /**
      * Jana beberapa caption berbeza — satu untuk setiap gambar,
      * supaya split test membandingkan sudut ayat, bukan hanya gambar.
-     *
-     * @return array<int, string>
      */
-    public function generate(string $problem, string $offer, int $count = 1): array
+    public function generate(string $problem, string $offer, int $count = 1): CaptionSet
     {
         $count = max(1, min($count, (int) config('dynoads.creative.max_images')));
         $attempts = (int) config('dynoads.claude.retries') + 1;
@@ -30,7 +28,7 @@ class CaptionService
                 $captions = $this->ask($problem, $offer, $count);
 
                 if (count($captions) >= $count) {
-                    return array_slice($captions, 0, $count);
+                    return CaptionSet::fromAi(array_slice($captions, 0, $count));
                 }
 
                 $last = new RuntimeException('Claude pulangkan caption tidak cukup.');
@@ -39,8 +37,15 @@ class CaptionService
             }
         }
 
-        // Jangan halang peniaga sebab AI gagal — bagi caption asas yang boleh diedit.
-        return $this->fallback($problem, $offer, $count);
+        // Jangan halang peniaga sebab AI gagal — bagi caption asas yang boleh
+        // diedit, TAPI katakan ia berlaku. Fallback senyap membuatkan kunci API
+        // yang tidak diisi kelihatan seperti AI yang menulis dengan teruk.
+        return CaptionSet::fromFallback(
+            $this->fallback($problem, $offer, $count),
+            blank(config('dynoads.claude.api_key'))
+                ? 'ANTHROPIC_API_KEY belum diisi.'
+                : 'Claude tidak dapat dihubungi: '.($last?->getMessage() ?? 'sebab tidak diketahui'),
+        );
     }
 
     /** @return array<int, string> */
@@ -107,6 +112,39 @@ class CaptionService
         return trim(preg_replace('/ +([,.!?])/', '$1', preg_replace('/[ \t]{2,}/', ' ', $caption)));
     }
 
+    /**
+     * Dakwaan yang tidak boleh dibuktikan.
+     *
+     * Ini AMARAN, bukan halangan. "Termurah di Malaysia" mungkin memang benar
+     * untuk peniaga itu — tetapi Meta menilai dakwaan superlatif sebagai
+     * berisiko, dan peniaga patut tahu sebelum membelanjakan duit, bukan
+     * selepas iklan ditolak.
+     *
+     * @return array<int, string>
+     */
+    public function riskyClaims(string $caption): array
+    {
+        $patterns = [
+            'termurah' => 'termurah',
+            'paling murah' => 'paling murah',
+            'terbaik' => 'terbaik',
+            'paling laris' => 'paling laris',
+            'no.1' => 'nombor satu',
+            'nombor 1' => 'nombor satu',
+            '100%' => '100%',
+        ];
+
+        $found = [];
+
+        foreach ($patterns as $needle => $label) {
+            if (mb_stripos($caption, $needle) !== false) {
+                $found[$label] = $label;
+            }
+        }
+
+        return array_values($found);
+    }
+
     public function hasForbiddenWord(string $caption): bool
     {
         foreach ((array) config('dynoads.claude.forbidden_words') as $word) {
@@ -121,15 +159,36 @@ class CaptionService
     protected function systemPrompt(): string
     {
         return <<<'TXT'
-        Kau AI Nurin, penulis copy untuk peniaga kecil Malaysia.
+        Kau AI Nurin, penulis copy untuk peniaga kecil Malaysia. Kau tulis untuk
+        orang yang scroll Facebook atas telefon sambil buat kerja lain.
 
-        Tulis caption iklan Facebook Click-to-WhatsApp dalam Bahasa Melayu santai
-        (bahasa pasar yang sopan, bukan BM baku sekolah). Setiap caption:
-        - 2 hingga 4 baris pendek, mudah dibaca atas telefon
-        - mula dengan masalah pelanggan, tutup dengan jalan keluar yang tenang
-        - jangan janji hasil, jangan guna perkataan "dijamin" atau "terbaik di Malaysia"
-        - jangan guna perkataan "demo"
-        - akhiri dengan ajakan: Tekan WhatsApp untuk info lanjut
+        BENTUK
+        - 3 hingga 5 baris pendek. Baris pertama mesti berhenti scroll.
+        - Bahasa Melayu santai yang orang sebenar guna. Bukan BM baku sekolah,
+          bukan bahasa korporat.
+        - Satu idea satu baris. Jangan ayat panjang berbelit.
+        - Akhiri dengan: Tekan WhatsApp untuk info lanjut
+
+        BARIS PERTAMA
+        Mula dengan detik yang peniaga kenal, bukan pengumuman.
+        Bagus:  "Pukul 8 malam. Duit dalam laci tak sama dengan jualan."
+        Teruk:  "Kami menawarkan sistem POS yang berkualiti."
+        Guna nombor dan waktu yang khusus bila boleh. Yang khusus lebih dipercayai.
+
+        SETIAP CAPTION SUDUT BERBEZA
+        Kalau diminta 3 caption, jangan bagi tiga versi ayat yang sama.
+        Sudut yang boleh dipakai: kos tersembunyi hari ini · apa berubah selepas
+        pasang · bantahan yang orang selalu ada · siapa ia sesuai · apa yang
+        berlaku kalau biarkan.
+
+        JANGAN
+        - Jangan janji hasil atau pulangan.
+        - Jangan guna "dijamin", "terbaik di Malaysia", "nombor 1", "demo".
+        - Jangan tulis dakwaan yang tak boleh dibuktikan ("termurah di Malaysia").
+          Kalau peniaga bagi harga, sebut harga itu — angka lebih kuat daripada
+          dakwaan.
+        - Jangan guna emoji lebih dari satu. Kebanyakan caption tak perlu langsung.
+        - Jangan ulang perkataan tawaran bulat-bulat. Tulis semula ikut suara peniaga.
 
         Balas JSON sahaja: ["caption satu", "caption dua"]. Tiada teks lain.
         TXT;
@@ -137,7 +196,13 @@ class CaptionService
 
     protected function userPrompt(string $problem, string $offer, int $count): string
     {
-        return "Masalah pelanggan: {$problem}\nTawaran: {$offer}\n\nBagi {$count} caption berbeza sudut.";
+        return <<<TXT
+        Masalah pelanggan: {$problem}
+        Tawaran: {$offer}
+
+        Bagi {$count} caption, setiap satu sudut berbeza.
+        Tulis dalam suara peniaga ini, bukan suara agensi iklan.
+        TXT;
     }
 
     /** @return array<int, string> */

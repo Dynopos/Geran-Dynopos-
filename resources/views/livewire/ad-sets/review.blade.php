@@ -4,6 +4,14 @@
         AI Nurin dah tulis caption. Ubah ikut suka anda — anda yang kenal pelanggan.
     </p>
 
+    @if ($fallbackReason)
+        <div class="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-sm leading-relaxed text-amber-800 dark:text-amber-200">
+            <span class="font-semibold">AI tak menulis caption ni.</span>
+            Ini ayat asas yang app susun dari input anda — sebab tu ia bunyi kosong.
+            <span class="mt-1.5 block text-amber-700/80 dark:text-amber-200/70">{{ $fallbackReason }}</span>
+        </div>
+    @endif
+
     @if ($error)
         <div class="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-sm text-rose-700 dark:text-rose-200">{{ $error }}</div>
     @endif
@@ -24,7 +32,16 @@
                     @endif
                 </div>
                 <div class="p-4">
-                    <textarea wire:model="captions.{{ $variant->id }}" rows="5" class="field leading-relaxed"></textarea>
+                    <textarea wire:model.blur="captions.{{ $variant->id }}" rows="5" class="field leading-relaxed"></textarea>
+
+                    @if (! empty($risiko[$variant->id]))
+                        <p class="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+                            Dakwaan <span class="font-semibold">{{ implode(', ', $risiko[$variant->id]) }}</span>
+                            susah dibuktikan, dan Meta kadang menolaknya. Kalau ada harga, sebut harga —
+                            angka lebih kuat daripada dakwaan.
+                        </p>
+                    @endif
+
                     <p class="hint">Butang iklan: Tekan WhatsApp untuk info lanjut</p>
                 </div>
             </div>
