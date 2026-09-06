@@ -40,12 +40,9 @@ Kekalkan pembukaan Forge, kemudian **tambah blok di bawah selepasnya**, sebelum
 apa-apa baris composer yang sedia ada:
 
 ```bash
-# ---------------------------------------------------------------- WAJIB DULU
-# Zero-downtime deploy menggantikan folder `storage` dalam release dengan symlink
-# ke folder shared — yang kosong pada deploy pertama. Direktori storage/ dalam git
-# terus dipintas. composer install memanggil package:discover, yang boot Laravel,
-# yang perlukan storage/framework/views wujud. Kalau tiada:
-#   In Compiler.php line 67: Please provide a valid cache path.
+# Jaring keselamatan. App juga mencipta folder ini sendiri semasa boot
+# (AppServiceProvider), jadi deploy tidak lagi bergantung pada baris ni —
+# tetapi ia murah dan menjadikan release pertama bersih.
 mkdir -p storage/framework/cache/data \
          storage/framework/sessions \
          storage/framework/views \
@@ -74,6 +71,25 @@ $FORGE_PHP artisan optimize
 ( flock -w 10 9 || exit 1
     echo 'Restarting FPM...'; sudo -S service $FORGE_PHP_FPM reload ) 9>/tmp/fpmlock
 ```
+
+### "Please provide a valid cache path." — sudah dibetulkan dalam kod
+
+Deploy gagal tiga kali dengan ralat ini semasa `composer install` →
+`package:discover`. Dua puncanya, dua-dua sudah ditutup:
+
+1. **Config lalai Laravel** guna `realpath(storage_path('framework/views'))`.
+   `realpath()` pulangkan `false` bila folder tiada, dan ia dinilai masa config
+   dimuat — sebelum apa-apa sempat menciptanya. Kita hantar `config/view.php`
+   sendiri tanpa `realpath()`; Blade mencipta folder itu sendiri bila mengkompil.
+
+2. **`AppServiceProvider` kita tidak pernah dijalankan.** Laravel Pint (dev
+   dependency) turut mengisytiharkan namespace `App\`, dan classmap composer
+   memilih `vendor/laravel/pint/app/Providers/AppServiceProvider.php` dan bukan
+   fail kita. `composer.json` kini ada `exclude-from-classmap` untuk laluan itu.
+   Provider tu sekarang mencipta setiap folder storage yang hilang semasa boot.
+
+Kalau ralat ini muncul semula, jangan tampal `mkdir` lagi — semak dua perkara di
+atas dahulu. `tests/Feature/ViewCachePathTest.php` menjaga kedua-duanya.
 
 ## 3B. Database — baca ini kalau zero-downtime dihidupkan
 

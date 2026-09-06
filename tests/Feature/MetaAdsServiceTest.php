@@ -164,6 +164,10 @@ it('mengira lead WhatsApp dari onsite_conversion.total_messaging_connection', fu
 });
 
 it('mengutamakan error_user_msg bila Meta tolak dan tidak membocorkan token', function () {
+    // Token yang pasti bukan kosong — assertion "tidak mengandungi ''" sentiasa
+    // benar dan tidak menguji apa-apa.
+    config()->set('dynoads.meta.token', 'EAAB_TOKEN_RAHSIA_UNTUK_UJIAN');
+
     Http::fake(['*/adsets' => Http::response([
         'error' => [
             'message' => 'Invalid parameter',
@@ -180,7 +184,8 @@ it('mengutamakan error_user_msg bila Meta tolak dan tidak membocorkan token', fu
         expect($e->forHuman())->toBe('Nombor WhatsApp tidak sah untuk Page ini.')
             ->and($e->errorCode)->toBe(100)
             ->and($e->errorSubcode)->toBe(1885183)
-            ->and($e->getMessage())->not->toContain(config('dynoads.meta.token'));
+            ->and($e->getMessage())->not->toContain('EAAB_TOKEN_RAHSIA_UNTUK_UJIAN')
+            ->and($e->forHuman())->not->toContain('EAAB_TOKEN_RAHSIA_UNTUK_UJIAN');
     }
 });
 

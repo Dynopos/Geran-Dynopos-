@@ -2,7 +2,12 @@
     "name": "dynopos/dynoads",
     "type": "project",
     "description": "Dyno Ads — auto-run & auto split test Meta Click-to-WhatsApp ads untuk peniaga kecil.",
-    "keywords": ["laravel", "meta-ads", "whatsapp", "dynopro"],
+    "keywords": [
+        "laravel",
+        "meta-ads",
+        "whatsapp",
+        "dynopro"
+    ],
     "license": "proprietary",
     "require": {
         "php": "^8.2",
@@ -23,7 +28,11 @@
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
-        }
+        },
+        "exclude-from-classmap": [
+            "vendor/laravel/pint/app/",
+            "vendor/laravel/pint/tests/"
+        ]
     },
     "autoload-dev": {
         "psr-4": {
