@@ -135,6 +135,21 @@ Deploy gagal tiga kali dengan ralat ini semasa `composer install` →
 Kalau ralat ini muncul semula, jangan tampal `mkdir` lagi — semak dua perkara di
 atas dahulu. `tests/Feature/ViewCachePathTest.php` menjaga kedua-duanya.
 
+### APP_DEBUG mesti false di production
+
+Kalau `APP_DEBUG=true`, setiap ralat memaparkan halaman Ignition penuh — yang
+menyenaraikan **seluruh isi `.env`**, termasuk token Meta dan kunci OpenAI anda.
+Pada domain awam itu bermakna sesiapa yang mencetuskan ralat boleh membacanya.
+
+Ia juga kelihatan pelik: Livewire memaparkan halaman ralat itu dalam iframe,
+jadi peniaga nampak kotak hitam besar menutup borang dan bukan mesej yang
+menerangkan apa yang berlaku.
+
+```
+APP_ENV=production
+APP_DEBUG=false
+```
+
 ### Chromium untuk enjin poster
 
 Poster dirender dengan Playwright. Pelayan perlukan Chromium — sekali sahaja,
@@ -154,8 +169,36 @@ Environment dan bukan menyalin binari:
 PLAYWRIGHT_CHROMIUM_PATH=/laluan/ke/chrome
 ```
 
-Tanpa Chromium, skrin `/poster` akan pulangkan ralat render — bahagian lain app
-tidak terjejas.
+Tanpa Chromium, skrin `/poster` memaparkan ayat yang memberitahu arahan di atas —
+bahagian lain app tidak terjejas.
+
+**Had masa PHP.** Render dihadkan supaya berakhir sebelum PHP membunuh
+permintaan (`max_execution_time`, lalai 30s pada FPM). Kalau render sering
+kehabisan masa, naikkan had itu bersama had muat naik di atas — 60s memadai.
+
+### Had muat naik PHP — naikkan sebelum guna dari telefon
+
+Lalai PHP ialah `upload_max_filesize = 2M`. Gambar telefon biasanya 3–8 MB, jadi
+hampir setiap muat naik gagal dengan "The product failed to upload."
+
+Forge → server `dynopos` → **PHP** → Edit php.ini (atau Site → PHP → FPM config):
+
+```ini
+upload_max_filesize = 20M
+post_max_size = 25M
+```
+
+`post_max_size` mesti lebih besar daripada `upload_max_filesize` — ia meliputi
+keseluruhan borang, bukan fail sahaja. Kalau tidak, muat naik berbilang gambar
+di `/buat` tetap gagal walaupun setiap fail muat.
+
+Nginx juga ada hadnya sendiri. Forge biasanya menetapkan `client_max_body_size`
+cukup tinggi, tetapi kalau muat naik gagal dengan 413, naikkan ia dalam
+Site → Nginx Configuration.
+
+App membaca had sebenar PHP dan menyesuaikan validasinya sendiri, jadi ia tidak
+akan menjanjikan lebih daripada yang pelayan boleh terima — tetapi ia tidak boleh
+menaikkan had itu untuk anda.
 
 ## 3B. Database — baca ini kalau zero-downtime dihidupkan
 

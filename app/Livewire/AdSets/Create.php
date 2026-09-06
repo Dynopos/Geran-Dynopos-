@@ -9,6 +9,7 @@ use App\Services\ImageProcessor;
 use App\Services\MetaAdsService;
 use App\Services\Poster\PosterBasket;
 use App\Services\Poster\ProductHandoff;
+use App\Support\Uploads;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
@@ -143,6 +144,16 @@ class Create extends Component
         return app(PosterBasket::class)->jobs();
     }
 
+    public function uploadLimit(): string
+    {
+        return Uploads::maxLabel();
+    }
+
+    public function uploadLimitTooTight(): bool
+    {
+        return Uploads::tooTightForPhonePhotos();
+    }
+
     public function creativeCount(): int
     {
         return count($this->images) + $this->posterJobs()->count();
@@ -160,7 +171,7 @@ class Create extends Component
 
         return [
             'images' => 'array|max:'.config('dynoads.creative.max_images'),
-            'images.*' => 'image|max:8192',
+            'images.*' => 'image|max:'.Uploads::maxKilobytes(),
             'problem' => 'required|string|min:5|max:200',
             'offer' => 'required|string|min:5|max:200',
             'phone' => ['required', 'regex:/^60\d{8,11}$/'],
@@ -177,6 +188,9 @@ class Create extends Component
             'creatives.required' => 'Perlukan sekurang-kurangnya satu gambar atau poster.',
             'images.max' => 'Maksimum 4 gambar. Lebih dari tu susah nak baca hasilnya.',
             'images.*.image' => 'Fail kena gambar (JPG, PNG atau WEBP).',
+            'images.*.uploaded' => 'Gambar gagal dimuat naik. Biasanya kerana saiznya melebihi had pelayan ('.Uploads::maxLabel().').',
+            'images.*.max' => 'Gambar terlalu besar. Had pelayan ni :max KB.',
+            'upload.*.uploaded' => 'Gambar gagal dimuat naik. Biasanya kerana saiznya melebihi had pelayan ('.Uploads::maxLabel().').',
             'problem.required' => 'Tulis masalah pelanggan anda.',
             'offer.required' => 'Tulis apa yang anda tawarkan.',
             'phone.regex' => 'Nombor WhatsApp kena format 60XXXXXXXXX, tiada tanda +.',

@@ -376,3 +376,51 @@ it('peniaga boleh membuang gambar yang dibawa', function () {
 
     expect($handoff->path())->toBeNull();
 });
+
+// -------------------------------------------------------- had masa & ralat
+
+it('render tidak pernah dibenarkan berjalan melebihi had masa PHP', function () {
+    // Kalau ia melebihi, PHP membunuh permintaan dahulu dengan 500 mentah —
+    // Livewire memaparkan halaman ralat penuh dalam iframe dan peniaga nampak
+    // kotak hitam, bukan ayat yang menerangkan apa yang berlaku.
+    $timeout = new ReflectionMethod(PosterService::class, 'renderTimeout');
+
+    config()->set('dynoads.poster.render_timeout', 90);
+    $service = app(PosterService::class);
+
+    $phpLimit = (float) ini_get('max_execution_time');
+    $actual = $timeout->invoke($service);
+
+    if ($phpLimit > 0) {
+        expect($actual)->toBeLessThan($phpLimit);
+    } else {
+        expect($actual)->toBe(90.0);
+    }
+});
+
+it('menterjemah output perender kepada ayat yang boleh diikut', function () {
+    $poster = app(PosterService::class);
+
+    expect($poster->explain("browserType.launch: Executable doesn't exist at /opt/x/chrome"))
+        ->toContain('Chromium belum dipasang')
+        ->toContain('npx playwright install')
+        ->and($poster->explain("Error: Cannot find module 'playwright'"))
+        ->toContain('npm ci')
+        ->and($poster->explain(''))
+        ->toContain('Tiada sebab dilaporkan');
+});
+
+it('memendekkan longgokan stack trace, bukan membuangnya ke skrin', function () {
+    $panjang = str_repeat('Ralat rawak yang panjang. ', 100);
+
+    expect(mb_strlen(app(PosterService::class)->explain($panjang)))
+        ->toBeLessThanOrEqual(303);
+});
+
+it('skrip render yang hilang gagal serta-merta, bukan menunggu timeout', function () {
+    config()->set('dynoads.poster.renderer', '/laluan/yang/tiada.mjs');
+
+    expect(fn () => app(PosterService::class)->render(
+        'promo-meletup', ['headline' => 'Ujian'],
+    ))->toThrow(RuntimeException::class, 'Skrip render poster tiada');
+});
