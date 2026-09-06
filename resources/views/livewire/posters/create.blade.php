@@ -24,7 +24,44 @@
                         : 'Latar gambar terlalu sibuk untuk dibuang, jadi ia dibingkaikan sebagai kad. Untuk hasil terbaik, tangkap gambar atas meja atau dinding kosong.' }}
                 @endif
             </p>
+            @if ($sudahDalamBakul)
+                <div class="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-center text-sm font-semibold text-emerald-700 dark:text-emerald-200">
+                    Poster ni sudah masuk senarai iklan
+                </div>
+            @elseif ($bakulPenuh)
+                <p class="hint text-center">Senarai iklan sudah penuh ({{ config('dynoads.creative.max_images') }} poster). Buang satu dulu.</p>
+            @else
+                <button type="button" wire:click="useForAd" class="btn-primary mt-3">
+                    Guna poster ni untuk iklan
+                </button>
+            @endif
+
             <a href="{{ $posterUrl }}" download class="btn-ghost mt-3 block text-center">Muat turun poster</a>
+        </div>
+    @endif
+
+    @if ($bakul->isNotEmpty())
+        <div class="card mt-5 p-4">
+            <div class="flex items-baseline justify-between">
+                <span class="label">Senarai iklan</span>
+                <span class="text-xs font-semibold t-faint">{{ $bakul->count() }} / {{ config('dynoads.creative.max_images') }}</span>
+            </div>
+
+            <div class="mt-3 grid grid-cols-4 gap-2">
+                @foreach ($bakul as $job)
+                    <div class="relative">
+                        <img src="{{ Storage::disk(config('dynoads.poster.disk'))->url($job->output_path) }}" alt=""
+                             class="aspect-square w-full rounded-xl border border-current/10 object-cover">
+                        <button type="button" wire:click="removeFromBasket({{ $job->id }})" aria-label="Buang poster"
+                                class="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-current/20 text-xs font-bold"
+                                style="background-color: rgb(var(--surface-soft))">&times;</button>
+                    </div>
+                @endforeach
+            </div>
+
+            <a href="{{ route('ad-sets.create') }}" wire:navigate class="btn-primary mt-4 block text-center">
+                Teruskan buat iklan ({{ $bakul->count() }} poster)
+            </a>
         </div>
     @endif
 

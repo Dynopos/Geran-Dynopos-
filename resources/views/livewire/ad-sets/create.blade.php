@@ -10,8 +10,25 @@
         <div>
             <div class="flex items-baseline justify-between">
                 <span class="label">Gambar iklan</span>
-                <span class="text-xs font-semibold t-faint">{{ count($images) }} / {{ config('dynoads.creative.max_images') }}</span>
+                <span class="text-xs font-semibold t-faint">{{ $this->creativeCount() }} / {{ config('dynoads.creative.max_images') }}</span>
             </div>
+
+            @php $posters = $this->posterJobs(); @endphp
+
+            @if ($posters->isNotEmpty())
+                <div class="mt-3 grid grid-cols-4 gap-2">
+                    @foreach ($posters as $job)
+                        <div class="relative">
+                            <img src="{{ Storage::disk(config('dynoads.poster.disk'))->url($job->output_path) }}" alt=""
+                                 class="aspect-square w-full rounded-xl border border-current/10 object-cover">
+                            <span class="absolute left-1 top-1 rounded-md bg-dyno-gradient px-1.5 text-[10px] font-bold text-white">POSTER</span>
+                            <button type="button" wire:click="removePoster({{ $job->id }})" aria-label="Buang poster"
+                                    class="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-current/20 text-xs font-bold"
+                                    style="background-color: rgb(var(--surface-soft))">&times;</button>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
 
             @if ($images)
                 <div class="mt-3 grid grid-cols-4 gap-2">
@@ -29,7 +46,7 @@
                 </div>
             @endif
 
-            @if (count($images) < config('dynoads.creative.max_images'))
+            @if ($this->creativeCount() < config('dynoads.creative.max_images'))
                 <label class="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-current/20 bg-current/[0.03] px-4 py-5 text-sm font-semibold t-muted">
                     <span wire:loading.remove wire:target="upload">
                         {{ $images ? '+ Tambah gambar lagi' : '+ Pilih gambar' }}
@@ -41,6 +58,10 @@
                     Boleh pilih satu-satu. Setiap gambar ditambah, bukan menggantikan yang sebelumnya.
                     Semua dipotong jadi persegi 1080&times;1080.
                 </p>
+                <a href="{{ route('posters.create') }}" wire:navigate
+                   class="mt-2 inline-block text-xs font-semibold text-dyno-magenta dark:text-dyno-pink">
+                    Atau buat poster dari gambar produk &rarr;
+                </a>
             @else
                 <p class="hint">Sudah cukup 4. Buang satu kalau nak tukar.</p>
             @endif
@@ -122,9 +143,9 @@
             <input type="number" wire:model.live="budgetRm" min="10" max="200" class="field mt-2">
             @error('budgetRm') <p class="err">{{ $message }}</p> @enderror
 
-            @if ($images)
+            @if ($this->creativeCount())
                 <div class="card mt-3 flex items-center justify-between p-3.5">
-                    <span class="text-xs t-muted">{{ count($images) }} iklan &times; RM{{ $budgetRm }}</span>
+                    <span class="text-xs t-muted">{{ $this->creativeCount() }} iklan &times; RM{{ $budgetRm }}</span>
                     <span class="text-base font-bold">
                         <span class="gradient-text">RM{{ $this->totalDailyRm() }}</span>
                         <span class="text-xs font-medium t-faint">/hari</span>

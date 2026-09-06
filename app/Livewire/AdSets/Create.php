@@ -7,6 +7,7 @@ use App\Models\AdSet;
 use App\Models\AdVariant;
 use App\Services\ImageProcessor;
 use App\Services\MetaAdsService;
+use App\Services\Poster\PosterBasket;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
@@ -88,7 +89,7 @@ class Create extends Component
         $max = (int) config('dynoads.creative.max_images');
 
         foreach ($this->upload as $file) {
-            if (count($this->images) >= $max) {
+            if ($this->creativeCount() >= $max) {
                 break;
             }
 
@@ -117,13 +118,29 @@ class Create extends Component
         $this->regionKeys = [];
     }
 
+    /** Poster dari /poster dikira sebagai creative, sama seperti gambar upload. */
+    public function posterJobs()
+    {
+        return app(PosterBasket::class)->jobs();
+    }
+
+    public function creativeCount(): int
+    {
+        return count($this->images) + $this->posterJobs()->count();
+    }
+
+    public function removePoster(int $posterJobId, PosterBasket $basket): void
+    {
+        $basket->remove($posterJobId);
+    }
+
     protected function rules(): array
     {
         $min = intdiv((int) config('dynoads.budget.min_daily_sen'), 100);
         $max = intdiv((int) config('dynoads.budget.max_daily_sen'), 100);
 
         return [
-            'images' => 'required|array|min:'.config('dynoads.creative.min_images').'|max:'.config('dynoads.creative.max_images'),
+            'images' => 'array|max:'.config('dynoads.creative.max_images'),
             'images.*' => 'image|max:8192',
             'problem' => 'required|string|min:5|max:200',
             'offer' => 'required|string|min:5|max:200',
@@ -138,6 +155,7 @@ class Create extends Component
     {
         return [
             'images.required' => 'Muat naik sekurang-kurangnya satu gambar.',
+            'creatives.required' => 'Perlukan sekurang-kurangnya satu gambar atau poster.',
             'images.max' => 'Maksimum 4 gambar. Lebih dari tu susah nak baca hasilnya.',
             'images.*.image' => 'Fail kena gambar (JPG, PNG atau WEBP).',
             'problem.required' => 'Tulis masalah pelanggan anda.',
@@ -148,12 +166,26 @@ class Create extends Component
 
     public function totalDailyRm(): int
     {
-        return max(count($this->images), 1) * $this->budgetRm;
+        return max($this->creativeCount(), 1) * $this->budgetRm;
     }
 
-    public function save(ImageProcessor $processor)
+    public function save(ImageProcessor $processor, PosterBasket $basket)
     {
         $this->validate();
+
+        $posters = $basket->jobs();
+
+        if ($this->images === [] && $posters->isEmpty()) {
+            $this->addError('images', 'Perlukan sekurang-kurangnya satu gambar atau poster.');
+
+            return null;
+        }
+
+        if (count($this->images) + $posters->count() > (int) config('dynoads.creative.max_images')) {
+            $this->addError('images', 'Maksimum '.config('dynoads.creative.max_images').' creative semuanya, termasuk poster.');
+
+            return null;
+        }
 
         $set = AdSet::create([
             'name' => str($this->offer)->limit(60)->value(),
@@ -166,22 +198,42 @@ class Create extends Component
             'status' => 'draft',
         ]);
 
-        foreach (array_values($this->images) as $index => $upload) {
-            $relative = "dynoads/{$set->id}/".($index + 1).'.jpg';
+        $position = 0;
+        $disk = Storage::disk('public');
 
-            Storage::disk('public')->makeDirectory(dirname($relative));
+        // Poster dahulu — itu yang peniaga sengaja reka.
+        foreach ($posters as $job) {
+            $relative = "dynoads/{$set->id}/".(++$position).'.jpg';
+            $disk->makeDirectory(dirname($relative));
 
-            $processor->squareCrop(
-                $upload->getRealPath(),
-                Storage::disk('public')->path($relative)
-            );
+            // Salin, bukan rujuk: poster boleh dijana semula atau dipadam,
+            // tetapi creative iklan mesti kekal seperti masa ia dilancarkan.
+            $processor->squareCrop($disk->path($job->output_path), $disk->path($relative));
 
             AdVariant::create([
                 'ad_set_id' => $set->id,
-                'position' => $index + 1,
+                'position' => $position,
+                'source_type' => 'poster',
+                'poster_job_id' => $job->id,
                 'image_path' => $relative,
             ]);
         }
+
+        foreach (array_values($this->images) as $upload) {
+            $relative = "dynoads/{$set->id}/".(++$position).'.jpg';
+            $disk->makeDirectory(dirname($relative));
+
+            $processor->squareCrop($upload->getRealPath(), $disk->path($relative));
+
+            AdVariant::create([
+                'ad_set_id' => $set->id,
+                'position' => $position,
+                'source_type' => 'upload',
+                'image_path' => $relative,
+            ]);
+        }
+
+        $basket->clear();
 
         return $this->redirectRoute('ad-sets.review', ['adSet' => $set], navigate: true);
     }

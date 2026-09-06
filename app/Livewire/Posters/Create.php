@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Posters;
 
+use App\Services\Poster\PosterBasket;
 use App\Services\Poster\PosterService;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
@@ -33,6 +34,8 @@ class Create extends Component
     public string $mood = 'kedai';
 
     public string $backgroundSource = 'stock';
+
+    public ?int $posterJobId = null;
 
     public ?string $posterUrl = null;
 
@@ -92,6 +95,7 @@ class Create extends Component
                 productAbsolutePath: $this->product?->getRealPath(),
             );
 
+            $this->posterJobId = $job->id;
             $this->posterUrl = Storage::disk(config('dynoads.poster.disk'))->url($job->output_path);
             $this->cutoutUsed = filled($job->cutout_path);
             $this->adaProduk = (bool) $this->product;
@@ -100,8 +104,27 @@ class Create extends Component
         }
     }
 
-    public function render()
+    /** Simpan poster ni untuk dijadikan iklan, tanpa muat turun. */
+    public function useForAd(PosterBasket $basket): void
     {
-        return view('livewire.posters.create');
+        if (! $this->posterJobId) {
+            return;
+        }
+
+        $basket->add($this->posterJobId);
+    }
+
+    public function removeFromBasket(int $posterJobId, PosterBasket $basket): void
+    {
+        $basket->remove($posterJobId);
+    }
+
+    public function render(PosterBasket $basket)
+    {
+        return view('livewire.posters.create', [
+            'bakul' => $basket->jobs(),
+            'sudahDalamBakul' => $this->posterJobId ? $basket->has($this->posterJobId) : false,
+            'bakulPenuh' => $basket->count() >= (int) config('dynoads.creative.max_images'),
+        ]);
     }
 }

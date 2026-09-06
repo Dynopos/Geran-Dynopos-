@@ -12,7 +12,7 @@ class AdVariant extends Model
     use HasFactory;
 
     protected $fillable = [
-        'ad_set_id', 'position', 'image_path', 'caption',
+        'ad_set_id', 'position', 'source_type', 'poster_job_id', 'image_path', 'caption',
         'meta_image_hash', 'meta_campaign_id', 'meta_adset_id',
         'meta_creative_id', 'meta_ad_id', 'status', 'last_error',
     ];
@@ -27,6 +27,16 @@ class AdVariant extends Model
     public function adSet(): BelongsTo
     {
         return $this->belongsTo(AdSet::class);
+    }
+
+    public function posterJob(): BelongsTo
+    {
+        return $this->belongsTo(PosterJob::class);
+    }
+
+    public function isPoster(): bool
+    {
+        return $this->source_type === 'poster';
     }
 
     public function metrics(): HasMany
