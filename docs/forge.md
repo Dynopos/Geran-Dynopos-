@@ -33,6 +33,12 @@ perlu diubah:
 Blok deploy script dalam §3 sengaja tidak mengandungi `cd`, jadi ia berfungsi
 tanpa perubahan pada mana-mana laluan.
 
+**GitHub Pages mesti kekal mati.** Repo ini pernah ada fail `CNAME` dan satu
+workflow yang menerbitkan SELURUH repo ke GitHub Pages. Dua-dua sudah dibuang.
+Kalau ia dihidupkan semula: DNS hanya boleh menunjuk satu tempat, jadi dynoads.my
+akan meninggalkan Forge — dan 61 fail kod sumber menjadi boleh dilayari sesiapa.
+Semak Settings → Pages kekal "None".
+
 **SSL.** Site → SSL → LetsEncrypt, masukkan `dynoads.my` dan `www.dynoads.my`.
 Tunggu DNS sebar dahulu — kalau tidak pengesahan gagal.
 
