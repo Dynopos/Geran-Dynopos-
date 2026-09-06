@@ -36,8 +36,7 @@
             </a>
 
             <button type="button" onclick="tukarTema()" aria-label="Tukar mod terang atau gelap"
-                    class="flex h-9 w-9 items-center justify-center rounded-xl transition active:scale-95"
-                    style="background-color: rgb(var(--surface-soft)); border: 1px solid rgb(var(--border) / 0.12);">
+                    class="icon-btn">
                 {{-- Matahari dipapar dalam mod gelap (tekan untuk terang), bulan sebaliknya. --}}
                 <svg class="h-[18px] w-[18px] dark:hidden" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">

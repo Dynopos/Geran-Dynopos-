@@ -91,6 +91,28 @@ Deploy gagal tiga kali dengan ralat ini semasa `composer install` →
 Kalau ralat ini muncul semula, jangan tampal `mkdir` lagi — semak dua perkara di
 atas dahulu. `tests/Feature/ViewCachePathTest.php` menjaga kedua-duanya.
 
+### Chromium untuk enjin poster
+
+Poster dirender dengan Playwright. Pelayan perlukan Chromium — sekali sahaja,
+melalui Site → **Commands**:
+
+```
+npx playwright install --with-deps chromium
+```
+
+Jangan letak baris ni dalam deploy script; ia memuat turun ratusan MB setiap kali.
+Sekali cukup, dan ia kekal antara deploy.
+
+Kalau Chromium duduk di tempat lain pada pelayan anda, tetapkan laluannya dalam
+Environment dan bukan menyalin binari:
+
+```
+PLAYWRIGHT_CHROMIUM_PATH=/laluan/ke/chrome
+```
+
+Tanpa Chromium, skrin `/poster` akan pulangkan ralat render — bahagian lain app
+tidak terjejas.
+
 ## 3B. Database — baca ini kalau zero-downtime dihidupkan
 
 Fasa 0 guna sqlite. Laluan lalai Laravel ialah `database/database.sqlite` — dan
