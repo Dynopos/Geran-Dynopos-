@@ -402,8 +402,8 @@ it('menterjemah output perender kepada ayat yang boleh diikut', function () {
     $poster = app(PosterService::class);
 
     expect($poster->explain("browserType.launch: Executable doesn't exist at /opt/x/chrome"))
-        ->toContain('Chromium belum dipasang')
-        ->toContain('npx playwright install')
+        ->toContain('Chrome atau Chromium tiada')
+        ->toContain('google-chrome-stable')
         ->and($poster->explain("Error: Cannot find module 'playwright'"))
         ->toContain('npm ci')
         ->and($poster->explain(''))
