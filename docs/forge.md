@@ -150,7 +150,56 @@ APP_ENV=production
 APP_DEBUG=false
 ```
 
-### Chromium untuk enjin poster
+### Chrome untuk enjin poster
+
+Perender mencari browser sendiri, mengikut turutan ini:
+
+```
+$PLAYWRIGHT_CHROMIUM_PATH
+/usr/bin/google-chrome-stable
+/usr/bin/google-chrome
+/opt/google/chrome/chrome
+/usr/bin/chromium
+/usr/bin/chromium-browser
+/snap/bin/chromium
+```
+
+Jumpa mana-mana satu = berjaya, tanpa perlu menetapkan apa-apa pemboleh ubah.
+
+**Cara paling boleh dipercayai** — Forge → **Recipes** → New Recipe →
+**Run as: root** (pilihan ini ada pada dialog RUN, bukan hanya pada definisi
+recipe — mudah terlepas):
+
+```bash
+cd /tmp
+wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+apt-get install -y ./google-chrome-stable_current_amd64.deb
+rm -f google-chrome-stable_current_amd64.deb
+google-chrome-stable --version
+```
+
+Chrome dari CDN Google membawa semua pustaka sistemnya sekali, jadi ia
+menyelesaikan dua masalah serentak.
+
+**Kenapa bukan `npx playwright install --with-deps chromium`:** ia memanggil
+`sudo` di dalamnya, dan runner Commands Forge tiada terminal untuk kata laluan
+(`sudo: a terminal is required`). Muat turun CDN Playwright juga kerap tamat
+masa pada pelayan Asia Tenggara (`Failed to download Chrome for Testing`).
+
+### Mendiagnosis bila poster masih gagal
+
+Site → Commands:
+
+```bash
+which google-chrome-stable google-chrome chromium chromium-browser
+grep '^PLAYWRIGHT' .env || echo "(tiada PLAYWRIGHT_* dalam .env)"
+ls /home/forge/.cache/ms-playwright 2>/dev/null || echo "(cache playwright kosong)"
+```
+
+Tiga baris itu memberitahu sama ada browser wujud, di mana, dan sama ada app
+diberitahu tentangnya.
+
+### Chromium untuk enjin poster (nota lama)
 
 Poster dirender dengan Playwright. Pelayan perlukan Chromium — sekali sahaja,
 melalui Site → **Commands**:

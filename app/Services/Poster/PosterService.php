@@ -216,10 +216,12 @@ class PosterService
         $lower = mb_strtolower($output);
 
         return match (true) {
+            str_contains($lower, 'tidak jumpa chrome'),
             str_contains($lower, "executable doesn't exist"),
             str_contains($lower, 'please run the following command'),
-            str_contains($lower, 'browsertype.launch') => 'Chromium belum dipasang pada pelayan. '
-                .'Jalankan sekali: npx playwright install --with-deps chromium',
+            str_contains($lower, 'browsertype.launch') => 'Chrome atau Chromium tiada pada pelayan. '
+                .'Pasang sebagai root: apt-get install -y google-chrome-stable. '
+                .'Laluan yang diperiksa tersenarai dalam log.',
             str_contains($lower, 'cannot find module') => 'Pakej Node tiada. Jalankan npm ci pada pelayan.',
             str_contains($lower, 'not found') && str_contains($lower, 'node') => 'Node tiada pada pelayan.',
             $output === '' => 'Tiada sebab dilaporkan oleh perender.',
